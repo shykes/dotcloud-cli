@@ -66,29 +66,33 @@ class CLI(object):
         if args.trace:
             self.client.trace = lambda(id): self.show_trace(id)
         cmd = 'cmd_{0}'.format(args.cmd)
-        if hasattr(self, cmd):
-            try:
-                getattr(self, cmd)(args)
-            except AuthenticationNotConfigured:
-                print 'CLI authentication is not configured. Run `{0} setup` now.'.format(self.cmd)
-            except RESTAPIError, e:
-                handler = self.error_handlers.get(e.code, self.default_error_handler)
-                handler(e)
-            except KeyboardInterrupt:
-                pass
-            except urllib2.URLError as e:
-                print 'Accessing DotCloud API failed: {0}'.format(str(e))
-            finally:
-                if args.trace and self.client.trace_id:
-                    self.show_trace(self.client.trace_id)
+        if not hasattr(self, cmd):
+            raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
+        try:
+            getattr(self, cmd)(args)
+        except AuthenticationNotConfigured:
+            print 'CLI authentication is not configured. Run `{0} setup` now.'.format(self.cmd)
+        except RESTAPIError, e:
+            handler = self.error_handlers.get(e.code, self.default_error_handler)
+            handler(e)
+        except KeyboardInterrupt:
+            pass
+        except urllib2.URLError as e:
+            print 'Accessing DotCloud API failed: {0}'.format(str(e))
+        finally:
+            if args.trace and self.client.trace_id:
+                self.show_trace(self.client.trace_id)
+
+    def ensure_app_local(self, args):
+        if args.application is None:
+            self.die('DotCloud application is not connected. '
+                     'Run `{cmd} create <appname>` or `{cmd} connect <appname>`'.format(cmd=self.cmd))
+        if args.environment is None:
+            args.environment = 'default'
 
     def app_local(func):
         def wrapped(self, args):
-            if args.application is None:
-                self.die('DotCloud application is not connected. '
-                         'Run `{cmd} create <appname>` or `{cmd} connect <appname>`'.format(cmd=self.cmd))
-            if args.environment is None:
-                args.environment = 'default'
+            self.ensure_app_local(args)
             func(self, args)
         return wrapped
 
@@ -604,3 +608,17 @@ class CLI(object):
             if e.code == 404:
                 self.die('Service {0} not found'.format(args.service))
         self.info('Service {0} will be restarted.'.format(args.service))
+
+    def cmd_logs(self, args):
+        print args.logs
+        cmd = 'cmd_logs_{0}'.format(args.logs)
+        if not hasattr(self, cmd):
+            raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
+        getattr(self, cmd)(args)
+
+    def cmd_logs_api(self, args):
+        print 'api', args
+        if not args.all and args.application:
+            print 'current app', args.application
+        else:
+            print 'all app'
