@@ -78,14 +78,12 @@ def get_parser(name='dotcloud'):
             help='Filter logs upon a given service instance (ex: www.0).')
 # LOGS APP -----------------------
 
-# LOGS API -----------------------
-    logs_api = logs.add_parser('api', help='Your recent activity on the API')
+    logs_history = subcmd.add_parser('history', help='Your recent activity')
 
-    logs_api.add_argument('--all' ,'-a', action='store_true',
-            help='Display your activity among all your applications'
+    logs_history.add_argument('--all' ,'-a', action='store_true',
+            help='Print out your activities among all your applications'
             ' rather than the currently connected or selected one.'
             ' Implicit when not connected to any application')
-# LOGS API -----------------------
 
     create = subcmd.add_parser('create', help='Create a new application')
     create.add_argument('application', help='specify the application')

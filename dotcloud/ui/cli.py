@@ -17,6 +17,7 @@ import getpass
 import urllib2
 import urllib
 import base64
+import datetime
 
 class CLI(object):
     __version__ = VERSION
@@ -616,9 +617,36 @@ class CLI(object):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
         getattr(self, cmd)(args)
 
-    def cmd_logs_api(self, args):
-        print 'api', args
+    def pprint_iso_dtime_local(self, strdate):
+        bt = time.strptime(strdate, "%Y-%m-%dT%H:%M:%S.%fZ")
+        ts = time.mktime(bt)
+        dt = datetime.datetime.utcfromtimestamp(ts)
+        return str(dt)
+        return dt.strftime('%a, %d %b %Y %H:%M:%S')
+
+    def cmd_history(self, args):
         if not args.all and args.application:
-            print 'current app', args.application
+            if args.environment is None:
+                args.environment = 'default'
+            url = '/me/applications/{0}/environments/{1}/activity' \
+                    .format(args.application, args.environment)
         else:
-            print 'all app'
+            url = '/me/activity'
+        print 'time', ' ' * 14,
+        print 'category action application.environment.service (details)'
+        for activity in self.client.get(url).items:
+            print '{ts:19} {category:8} {action:6}'.format(
+                    ts=self.pprint_iso_dtime_local(activity['created_at']),
+                    **activity),
+            category = activity['category']
+            if category == 'app':
+                print '{application}'.format(**activity)
+            elif category == 'env':
+                print '{application}.{environment}'.format(**activity),
+                if activity['action'] in ['new', 'deploy']:
+                    print '(revision={revision} build={build})'.format(**activity)
+                else:
+                    print
+            elif category == 'alias':
+                print '{application}.{environment}.{service}'.format(**activity),
+                print '(cname={alias})'.format(**activity)
