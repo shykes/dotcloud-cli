@@ -97,7 +97,7 @@ class CLI(object):
         if not os.path.exists(dir):
             os.mkdir(dir, 0700)
         f = open(os.path.join(dir, 'config'), 'w+')
-        json.dump(config, f)
+        json.dump(config, f, indent=4)
 
     def patch_config(self, new_config):
         config = {}

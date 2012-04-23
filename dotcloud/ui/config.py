@@ -26,7 +26,7 @@ class GlobalConfig(object):
             os.mkdir(self.dir, 0700)
         try:
             f = open(self.path, 'w+')
-            json.dump(self.data, f)
+            json.dump(self.data, f, indent=4)
         except:
             raise
 
