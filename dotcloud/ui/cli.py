@@ -424,7 +424,6 @@ class CLI(object):
 
         url = '/me/applications/{0}'.format(args.application)
         res = self.client.get(url)
-        snapshots = res.item.get('snapshots_enabled', False)
         repo = res.item.get('repository')
 
         url = '/me/applications/{0}/environments/{1}'.format(args.application, args.environment)
@@ -435,7 +434,6 @@ class CLI(object):
         if repo:
             print 'Repository: ' + repo
         print 'Revision: ' + (revision if revision else '(Unknown)')
-        print 'Build snapshots: ' + ('enabled' if snapshots else 'disabled')
 
     def dump_service(self, instance, indent=0):
         def show(string):
