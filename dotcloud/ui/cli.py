@@ -433,7 +433,7 @@ class CLI(object):
 
         print '--------'
         if repo:
-            print 'Repsotiroy: ' + repo
+            print 'Repository: ' + repo
         print 'Revision: ' + (revision if revision else '(Unknown)')
         print 'Build snapshots: ' + ('enabled' if snapshots else 'disabled')
 
