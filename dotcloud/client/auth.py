@@ -50,9 +50,10 @@ class OAuth2Auth(object):
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
             'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'scope': self.scope
+            'client_secret': self.client_secret
         }
+        if self.scope is not None:
+            data['scope'] = self.scope
         req.add_data(urllib.urlencode(data))
         res = json.load(urllib2.urlopen(req))
         if res.get('access_token'):

@@ -40,7 +40,7 @@ class CLI(object):
             client = self.global_config.get('client')
             self.client.authenticator = OAuth2Auth(access_token=token['access_token'],
                                                    refresh_token=token['refresh_token'],
-                                                   scope=token['scope'],
+                                                   scope=token.get('scope'),
                                                    client_id=client['key'],
                                                    client_secret=client['secret'],
                                                    token_url=client['token_url'])
@@ -215,8 +215,7 @@ class CLI(object):
             'username': username,
             'password': password,
             'grant_type': 'password',
-            'client_id': credential['key'],
-            'scope': ''  # bug
+            'client_id': credential['key']
         }
         req.add_data(urllib.urlencode(form))
         res = urllib2.urlopen(req)
