@@ -1,6 +1,6 @@
 from .parser import get_parser
 from .version import VERSION
-from .config import GlobalConfig
+from .config import GlobalConfig, CLIENT_KEY, CLIENT_SECRET
 from ..client import RESTClient
 from ..client.errors import RESTAPIError, AuthenticationNotConfigured
 from ..client.auth import BasicAuth, NullAuth, OAuth2Auth
@@ -41,9 +41,9 @@ class CLI(object):
             self.client.authenticator = OAuth2Auth(access_token=token['access_token'],
                                                    refresh_token=token['refresh_token'],
                                                    scope=token.get('scope'),
-                                                   client_id=client['key'],
-                                                   client_secret=client['secret'],
-                                                   token_url=client['token_url'])
+                                                   client_id=CLIENT_KEY,
+                                                   client_secret=CLIENT_SECRET,
+                                                   token_url=token['url'])
             self.client.authenticator.refresh_callback = lambda res: self.refresh_token(res)
         elif self.global_config.get('apikey'):
             access_key, secret = self.global_config.get('apikey').split(':')
@@ -182,29 +182,20 @@ class CLI(object):
         urlmap = client.get('/auth/discovery').item
         username = self.prompt('DotCloud username')
         password = self.prompt('Password', noecho=True)
-        try:
-            credential = self.register_client(urlmap.get('clients'), username, password)
-            credential['token_url'] = urlmap.get('token')
-        except Exception as e:
-            self.die('Username and password do not match. Try again.')
-        self.info('Registered the CLI client')
+        credential = {'token_url': urlmap.get('token'),
+            'key': CLIENT_KEY, 'secret': CLIENT_SECRET}
         try:
             token = self.authorize_client(urlmap.get('token'), credential, username, password)
         except Exception as e:
-            self.die('Authorizing CLI error: {0}'.format(e))
+            self.die('Username and password do not match. Try again.')
+        token['url'] = credential['token_url']
         config = GlobalConfig()
-        config.data = {'client': credential, 'token': token}
+        config.data = {'token': token}
         config.save()
         self.global_config = GlobalConfig()  # reload
         self.setup_auth()
         self.get_keys()
         self.info('DotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
-
-    def register_client(self, url, username, password):
-        req = urllib2.Request(url)
-        req.add_data(urllib.urlencode({ 'username': username, 'password': password }))
-        res = urllib2.urlopen(req)
-        return json.load(res)
 
     def authorize_client(self, url, credential, username, password):
         req = urllib2.Request(url)
