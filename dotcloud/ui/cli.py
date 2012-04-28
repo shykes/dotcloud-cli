@@ -1,6 +1,7 @@
 from .parser import get_parser
 from .version import VERSION
 from .config import GlobalConfig, CLIENT_KEY, CLIENT_SECRET
+from .colors import Colors
 from ..client import RESTClient
 from ..client.errors import RESTAPIError, AuthenticationNotConfigured
 from ..client.auth import BasicAuth, NullAuth, OAuth2Auth
@@ -21,10 +22,11 @@ import datetime
 
 class CLI(object):
     __version__ = VERSION
-    def __init__(self, debug=False, endpoint=None):
+    def __init__(self, debug=False, colors=None, endpoint=None):
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
         self.client = RESTClient(endpoint=endpoint, debug=debug)
         self.debug = debug
+        self.colors = Colors(colors)
         self.error_handlers = {
             401: self.error_authen,
             403: self.error_authz,
@@ -65,21 +67,21 @@ class CLI(object):
         args = p.parse_args(args)
         self.load_config(args)
         if args.trace:
-            self.client.trace = lambda(id): self.show_trace(id)
+            self.client.trace = lambda id: self.show_trace(id)
         cmd = 'cmd_{0}'.format(args.cmd)
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
         try:
             getattr(self, cmd)(args)
         except AuthenticationNotConfigured:
-            print 'CLI authentication is not configured. Run `{0} setup` now.'.format(self.cmd)
+            self.error('CLI authentication is not configured. Run `{0} setup` now.'.format(self.cmd))
         except RESTAPIError, e:
             handler = self.error_handlers.get(e.code, self.default_error_handler)
             handler(e)
         except KeyboardInterrupt:
             pass
         except urllib2.URLError as e:
-            print 'Accessing DotCloud API failed: {0}'.format(str(e))
+            self.error('Accessing DotCloud API failed: {0}'.format(str(e)))
         finally:
             if args.trace and self.client.trace_id:
                 self.show_trace(self.client.trace_id)
@@ -133,7 +135,7 @@ class CLI(object):
             pass
 
     def die(self, message):
-        print >>sys.stderr, message
+        self.error(message)
         sys.exit(1)
 
     def prompt(self, prompt, noecho=False):
@@ -148,8 +150,22 @@ class CLI(object):
             input = default
         return input == 'y'
 
+    def error(self, message):
+        print >>sys.stderr, '{c.red}{c.bright}Error:{c.reset} {message}' \
+            .format(c=self.colors, message=message)
+
     def info(self, message):
-        print >>sys.stderr, "--> " + message
+        print >>sys.stderr, '{c.blue}{c.bright}==>{c.reset} {message}' \
+            .format(c=self.colors, message=message)
+
+    def warning(self, message):
+        print >>sys.stderr, '{c.yellow}{c.bright}Warning:{c.reset} {message}' \
+            .format(c=self.colors, message=message)
+
+    def success(self, message):
+        print >>sys.stderr, '{c.green}{c.bright}==>{c.reset} ' \
+            '{c.bright}{message}{c.reset}' \
+            .format(c=self.colors, message=message)
 
     def default_error_handler(self, e):
         self.die("Unhandled exception: {0}".format(e))
@@ -165,7 +181,7 @@ class CLI(object):
 
     def error_server(self, e):
         if self.client.trace_id:
-            print '--> TraceID: {0}'.format(self.client.trace_id)
+            self.info('TraceID: {0}'.format(self.client.trace_id))
         self.die('Server Error: {0}'.format(e.desc))
 
     def cmd_version(self, args):
@@ -176,7 +192,7 @@ class CLI(object):
         try:
             self.info('Checking the authentication status')
             res = self.client.get('/me')
-            print 'OK: Client is authenticated as {0}'.format(res.item['username'])
+            self.success('Client is authenticated as {0}'.format(res.item['username']))
         except:
             self.die('Authentication failed. Run `{cmd} setup` to redo the authentication'.format(cmd=self.cmd))
         self.get_keys()
@@ -200,7 +216,7 @@ class CLI(object):
         self.global_config = GlobalConfig()  # reload
         self.setup_auth()
         self.get_keys()
-        self.info('DotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
+        self.success('DotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
 
     def authorize_client(self, url, credential, username, password):
         req = urllib2.Request(url)
@@ -223,7 +239,7 @@ class CLI(object):
             key = res.items[0]['private_key']
             self.global_config.save_key(key)
         except (KeyError, IndexError):
-            self.info('Retrieving push keys failed. You might have to run `{0} check` again'.format(self.cmd))
+            self.die('Retrieving push keys failed. You might have to run `{0} check` again'.format(self.cmd))
 
     def cmd_list(self, args):
         res = self.client.get('/me/applications')
@@ -240,7 +256,7 @@ class CLI(object):
                 self.die('Application "{0}" already exists.'.format(args.application))
             else:
                 self.die('Creating app "{0}" failed: {1}'.format(args.application, e))
-        print 'Application "{0}" created.'.format(args.application)
+        self.success('Application "{0}" created.'.format(args.application))
         if self.confirm('Connect the current directory to "{0}"?'.format(args.application), 'y'):
             self._connect(args.application)
 
@@ -279,7 +295,7 @@ class CLI(object):
                 self.die('The {0} "{1}" does not exist.'.format(what_destroy, to_destroy))
             else:
                 self.die('Destroying the {0} "{1}" failed: {1}'.format(what_destroy, to_destroy, e))
-        self.info('Destroyed.')
+        self.success('Destroyed.')
         if args.service is None:
             if self.config.get('application') == args.application:
                 self.destroy_config()
@@ -291,7 +307,7 @@ class CLI(object):
             'environment': 'default',
             'version': self.__version__
         })
-        self.info('Connected.')
+        self.success('Connected.')
 
     @app_local
     def cmd_app(self, args):
@@ -312,12 +328,12 @@ class CLI(object):
         elif args.subcmd == 'create':
             url = '/me/applications/{0}/environments'.format(args.application)
             res = self.client.post(url, { 'name': args.name })
-            self.info('Environment "{0}" created and set to the current environment.'.format(args.name))
-            self.patch_config({ 'environment': args.name })
+            self.success('Environment "{0}" created and set to the current environment.'.format(args.name))
+            self.patch_config({'environment': args.name})
         elif args.subcmd == 'destroy':
             url = '/me/applications/{0}/environments/{1}'.format(args.application, args.environment)
             res = self.client.delete(url)
-            self.info('Environment "{0}" destroyed. Current environment is set to default.'.format(args.name))
+            self.success('Environment "{0}" destroyed. Current environment is set to default.'.format(args.name))
             self.patch_config({ 'environment': 'default' })
         elif args.subcmd == 'use' or args.subcmd == 'switch':
             self.info('Current environment switched to {0}'.format(args.name))
@@ -348,12 +364,14 @@ class CLI(object):
             url = '/me/applications/{0}/environments/{1}/services/{2}/aliases' \
                 .format(args.application, args.environment, args.service)
             res = self.client.post(url, { 'alias': args.alias })
-            print 'Alias "{0}" created for "{1}"'.format(args.alias, args.service)
+            self.success('Alias "{0}" created for "{1}"'.format(
+                args.alias, args.service))
         elif args.subcmd == 'rm':
             url = '/me/applications/{0}/environments/{1}/services/{2}/aliases/{3}' \
                 .format(args.application, args.environment, args.service, args.alias)
             self.client.delete(url)
-            print 'Alias "{0}" deleted from "{1}"'.format(args.alias, args.service)
+            self.success('Alias "{0}" deleted from "{1}"'.format(
+                args.alias, args.service))
 
     @app_local
     def cmd_var(self, args):
@@ -408,8 +426,8 @@ class CLI(object):
             res = self.client.get(url)
         except RESTAPIError as e:
             if e.code == 404:
-                print 'WARNING: It seems you haven\'t deployed your application. '
-                print 'WARNING: Run {0} push to deploy and see the information about your stack. '.format(self.cmd)
+                self.warning('It seems you haven\'t deployed your application.')
+                self.warning('Run {0} push to deploy and see the information about your stack. '.format(self.cmd))
                 return
             else:
                 raise
@@ -528,7 +546,7 @@ class CLI(object):
             url = next.get('href')
             time.sleep(3)
         def display_url(service, urls):
-            self.info('Application is live at {0}'.format(urls[0]['url']))
+            self.success('Application is live at {0}'.format(urls[0]['url']))
         self.get_url(application, environment, display_url)
 
     @app_local
