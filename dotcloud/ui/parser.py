@@ -11,7 +11,6 @@ def get_parser(name='dotcloud'):
     subcmd = parser.add_subparsers(dest='cmd')
 
     subcmd.add_parser('list', help='list applications')
-    subcmd.add_parser('version', help='show version')
 
     check = subcmd.add_parser('check', help='Check the installation and authentication')
     setup = subcmd.add_parser('setup', help='Setup the client authentication')

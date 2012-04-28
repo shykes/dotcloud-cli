@@ -187,9 +187,6 @@ class CLI(object):
             self.info('TraceID: {0}'.format(self.client.trace_id))
         self.die('Server Error: {0}'.format(e.desc))
 
-    def cmd_version(self, args):
-        print 'dotcloud/' + self.__version__
-
     def cmd_check(self, args):
         # TODO Check ~/.dotcloud stuff
         try:
