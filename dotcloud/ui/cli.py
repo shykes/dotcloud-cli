@@ -134,8 +134,11 @@ class CLI(object):
         except:
             pass
 
-    def die(self, message):
-        self.error(message)
+    def die(self, message, stderr=False):
+        if stderr:
+            print >>sys.stderr, message
+        else:
+            self.error(message)
         sys.exit(1)
 
     def prompt(self, prompt, noecho=False):
@@ -151,19 +154,19 @@ class CLI(object):
         return input == 'y'
 
     def error(self, message):
-        print >>sys.stderr, '{c.red}{c.bright}Error:{c.reset} {message}' \
+        print '{c.red}{c.bright}Error:{c.reset} {message}' \
             .format(c=self.colors, message=message)
 
     def info(self, message):
-        print >>sys.stderr, '{c.blue}{c.bright}==>{c.reset} {message}' \
+        print '{c.blue}{c.bright}==>{c.reset} {message}' \
             .format(c=self.colors, message=message)
 
     def warning(self, message):
-        print >>sys.stderr, '{c.yellow}{c.bright}Warning:{c.reset} {message}' \
+        print '{c.yellow}{c.bright}Warning:{c.reset} {message}' \
             .format(c=self.colors, message=message)
 
     def success(self, message):
-        print >>sys.stderr, '{c.green}{c.bright}==>{c.reset} ' \
+        print '{c.green}{c.bright}==>{c.reset} ' \
             '{c.bright}{message}{c.reset}' \
             .format(c=self.colors, message=message)
 
@@ -390,7 +393,8 @@ class CLI(object):
                 try:
                     key, val = pair.split('=')
                 except ValueError:
-                    self.die('Usage: {0} var set KEY=VALUE ...'.format(self.cmd))
+                    self.die('usage: {0} var set KEY=VALUE ...' \
+                        .format(self.cmd), stderr=True)
                 patch[key] = val
             self.client.patch(url, patch)
             deploy = True
@@ -401,7 +405,7 @@ class CLI(object):
             self.client.patch(url, patch)
             deploy = True
         else:
-            self.die('Unknown sub command {0}'.format(subcmd))
+            self.die('Unknown sub command {0}'.format(subcmd), stderr=True)
         if deploy:
             self.deploy(args.application, args.environment)
 
@@ -413,7 +417,8 @@ class CLI(object):
                 name, value = svc.split('=', 2)
                 value = int(value)
             except (ValueError, TypeError):
-                self.die('Usage: {0} scale service=number'.format(self.cmd))
+                self.die('usage: {0} scale service=number'.format(self.cmd),
+                    stderr=True)
             instances[name] = value
         for name, value in instances.items():
             url = '/me/applications/{0}/environments/{1}/services/{2}/instances' \
@@ -562,7 +567,8 @@ class CLI(object):
         try:
             instance = int(instance)
         except ValueError:
-            self.die('Usage: {0} ssh service[.N]'.format(self.cmd))
+            self.die('usage: {0} ssh service[.N]'.format(self.cmd),
+                stderr=True)
         url = '/me/applications/{0}/environments/{1}/services/{2}'.format(args.application, args.environment, svc)
         res = self.client.get(url)
         for service in res.items:
