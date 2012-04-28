@@ -244,7 +244,10 @@ class CLI(object):
     def cmd_list(self, args):
         res = self.client.get('/me/applications')
         for app in sorted(res.items):
-            print app['name']
+            if app['name'] == args.application:
+                print '* ' + self.colors.green(app['name'])
+            else:
+                print '  ' + app['name']
 
     def cmd_create(self, args):
         self.info('Creating a new application called "{0}"'.format(args.application))
