@@ -1,8 +1,17 @@
 import argparse
+import sys
 from .version import VERSION
 
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        print >>sys.stderr, 'error: {0}'.format(message)
+        self.print_help()
+        sys.exit(1)
+
+
 def get_parser(name='dotcloud'):
-    parser = argparse.ArgumentParser(prog=name, description='dotcloud CLI')
+    parser = Parser(prog=name, description='dotcloud CLI')
     parser.add_argument('--application', '-A', help='specify the application')
     parser.add_argument('--environment', '-E', help='specify the environment')
     parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
