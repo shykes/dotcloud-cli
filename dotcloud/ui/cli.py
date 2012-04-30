@@ -387,11 +387,7 @@ class CLI(object):
         elif args.subcmd == 'set':
             patch = {}
             for pair in args.values:
-                try:
-                    key, val = pair.split('=')
-                except ValueError:
-                    self.die('usage: {0} var set KEY=VALUE ...' \
-                        .format(self.cmd), stderr=True)
+                key, val = pair.split('=')
                 patch[key] = val
             self.client.patch(url, patch)
             deploy = True

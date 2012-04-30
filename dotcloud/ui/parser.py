@@ -138,12 +138,23 @@ def get_parser(name='dotcloud'):
     deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
     deploy.add_argument('--clean', action='store_true', help='clean build')
 
+
+    def validate_var(kv):
+        if kv.count('=') != 1:
+            raise argparse.ArgumentTypeError('You must assign a value ' \
+                    'to "{0}" (e.g. {0}=VALUE)'.format(kv, kv))
+        (k, v) = kv.split('=')
+        if not v:
+            raise argparse.ArgumentTypeError('Invalid value for "{0}": '\
+                    'Values cannot be empty'.format(k))
+        return kv
+
     var = subcmd.add_parser('var', help='Manipulate application variables') \
         .add_subparsers(dest='subcmd')
     var_list = var.add_parser('list', help='List the application variables')
     var_set = var.add_parser('set', help='Set new application variables')
     var_set.add_argument('values', help='Application variables to set',
-                         metavar='key=value', nargs='+')
+                         metavar='key=value', nargs='+', type=validate_var)
     var_unset = var.add_parser('unset', help='Unset application variables')
     var_unset.add_argument('variables', help='Application variables to unset', metavar='var', nargs='+')
 
