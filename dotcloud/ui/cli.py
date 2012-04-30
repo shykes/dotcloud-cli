@@ -406,12 +406,8 @@ class CLI(object):
     def cmd_scale(self, args):
         instances = {}
         for svc in args.services:
-            try:
-                name, value = svc.split('=', 2)
-                value = int(value)
-            except (ValueError, TypeError):
-                self.die('usage: {0} scale service=number'.format(self.cmd),
-                    stderr=True)
+            name, value = svc.split('=', 2)
+            value = int(value)
             instances[name] = value
         for name, value in instances.items():
             url = '/me/applications/{0}/environments/{1}/services/{2}/instances' \

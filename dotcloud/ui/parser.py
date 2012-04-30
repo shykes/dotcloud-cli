@@ -138,7 +138,6 @@ def get_parser(name='dotcloud'):
     deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
     deploy.add_argument('--clean', action='store_true', help='clean build')
 
-
     def validate_var(kv):
         if kv.count('=') != 1:
             raise argparse.ArgumentTypeError('You must assign a value ' \
@@ -158,9 +157,25 @@ def get_parser(name='dotcloud'):
     var_unset = var.add_parser('unset', help='Unset application variables')
     var_unset.add_argument('variables', help='Application variables to unset', metavar='var', nargs='+')
 
+    def validate_scaling(kv):
+        if kv.count('=') != 1:
+            raise argparse.ArgumentTypeError('You must specify a number ' \
+                    'of instances for service "{0}" (e.g. {0}=3)'.format(kv, kv))
+        (k, v) = kv.split('=')
+        if not v:
+            raise argparse.ArgumentTypeError('Invalid value for "{0}": '\
+                    'Instance count cannot be empty'.format(k))
+        try:
+            v = int(v)
+        except ValueError:
+            raise argparse.ArgumentTypeError('Invalid value for "{0}": ' \
+                    'Instance count must be a number'.format(k))
+        return kv
+
     scale = subcmd.add_parser('scale', help='Scale services')
     scale.add_argument('services', nargs='+', metavar='service=count',
-                       help='Number of instances to set for each service e.g. www=2')
+                       help='Number of instances to set for each service e.g. www=2',
+                       type=validate_scaling)
 
     restart = subcmd.add_parser('restart', help='Restart the service')
     restart.add_argument('service', help='Specify the service')
