@@ -13,7 +13,6 @@ class Parser(argparse.ArgumentParser):
 def get_parser(name='dotcloud'):
     parser = Parser(prog=name, description='dotcloud CLI')
     parser.add_argument('--application', '-A', help='specify the application')
-    parser.add_argument('--environment', '-E', help='specify the environment')
     parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
     parser.add_argument('--trace', action='store_true', help='Display trace ID')
 
@@ -119,17 +118,6 @@ def get_parser(name='dotcloud'):
     run = subcmd.add_parser('run', help='SSH into the service')
     run.add_argument('service', help='Specify the service')
     run.add_argument('command', nargs='+', help='Run a command on the service')
-
-    env = subcmd.add_parser('env', help='Manipulate application environments') \
-        .add_subparsers(dest='subcmd')
-    env_show = env.add_parser('show', help='Show the current environment')
-    env_list = env.add_parser('list', help='List the environments')
-    env_create = env.add_parser('create', help='Create a new environment')
-    env_create.add_argument('name', help='Name of the new environment')
-    env_destroy = env.add_parser('destroy', help='Destroy an environment')
-    env_destroy.add_argument('name', help='Name of the environment to destroy')
-    env_switch = env.add_parser('switch', help='Switch to an environment')
-    env_switch.add_argument('name', help='Name of the environment')
 
     push = subcmd.add_parser('push', help='Push the code')
     push.add_argument('--clean', action='store_true', help='clean build')

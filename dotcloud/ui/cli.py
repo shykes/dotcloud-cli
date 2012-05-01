@@ -90,8 +90,6 @@ class CLI(object):
         if args.application is None:
             self.die('DotCloud application is not connected. '
                      'Run `{cmd} create <appname>` or `{cmd} connect <appname>`'.format(cmd=self.cmd))
-        if args.environment is None:
-            args.environment = 'default'
 
     def app_local(func):
         def wrapped(self, args):
@@ -122,8 +120,6 @@ class CLI(object):
             config = json.load(io)
             if not args.application:
                 args.application = config['application']
-            if not args.environment:
-                args.environment = config['environment']
             self.config = config
         except IOError, e:
             self.config = {}
@@ -183,6 +179,7 @@ class CLI(object):
         self.die("Not Found: {0}".format(e.desc))
 
     def error_server(self, e):
+        #FIXME
         if self.client.trace_id:
             self.info('TraceID: {0}'.format(self.client.trace_id))
         self.die('Server Error: {0}'.format(e.desc))
@@ -286,7 +283,7 @@ class CLI(object):
         else:
             what_destroy = 'service'
             to_destroy = '{0}.{1}'.format(args.application, args.service)
-            url = '/me/applications/{0}/environments/{1}/services/{2}'.format(args.application, args.environment, args.service)
+            url = '/me/applications/{0}/services/{1}'.format(args.application, args.service)
 
         if not self.confirm('Destroy the {0} "{1}"?'.format(what_destroy, to_destroy)):
             return
@@ -307,7 +304,6 @@ class CLI(object):
         self.info('Connecting with the application "{0}"'.format(application))
         self.save_config({
             'application': application,
-            'environment': 'default',
             'version': self.__version__
         })
         self.success('Connected.')
@@ -317,37 +313,9 @@ class CLI(object):
         print args.application
 
     @app_local
-    def cmd_env(self, args):
-        if args.subcmd == 'show':
-            print args.environment
-        elif args.subcmd == 'list':
-            url = '/me/applications/{0}/environments'.format(args.application)
-            res = self.client.get(url)
-            for data in res.items:
-                if data['name'] == args.environment:
-                    print '* ' + data['name']
-                else :
-                    print '  ' + data['name']
-        elif args.subcmd == 'create':
-            url = '/me/applications/{0}/environments'.format(args.application)
-            res = self.client.post(url, { 'name': args.name })
-            self.success('Environment "{0}" created and set to the current environment.'.format(args.name))
-            self.patch_config({'environment': args.name})
-        elif args.subcmd == 'destroy':
-            url = '/me/applications/{0}/environments/{1}'.format(args.application, args.environment)
-            res = self.client.delete(url)
-            self.success('Environment "{0}" destroyed. Current environment is set to default.'.format(args.name))
-            self.patch_config({ 'environment': 'default' })
-        elif args.subcmd == 'use' or args.subcmd == 'switch':
-            self.info('Current environment switched to {0}'.format(args.name))
-            self.patch_config({ 'environment': args.name })
-        else:
-            self.die('Unknown sub command {0}'.format(args.subcmd))
-
-    @app_local
     def cmd_service(self, args):
         if args.subcmd == 'list':
-            url = '/me/applications/{0}/environments/{1}/services'.format(args.application, args.environment)
+            url = '/me/applications/{0}/services'.format(args.application)
             res = self.client.get(url)
             for service in res.items:
                 print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
@@ -355,30 +323,30 @@ class CLI(object):
     @app_local
     def cmd_alias(self, args):
         if args.subcmd == 'list':
-            url = '/me/applications/{0}/environments/{1}/services'.format(args.application, args.environment)
+            url = '/me/applications/{0}/services'.format(args.application)
             res = self.client.get(url)
             for svc in res.items:
-                url = '/me/applications/{0}/environments/{1}/services/{2}/aliases'\
-                    .format(args.application, args.environment, svc.get('name'))
+                url = '/me/applications/{0}/services/{1}/aliases'\
+                    .format(args.application, svc.get('name'))
                 res = self.client.get(url)
                 for alias in res.items:
                     print '{0}: {1}'.format(svc.get('name'), alias.get('alias'))
         elif args.subcmd == 'add':
-            url = '/me/applications/{0}/environments/{1}/services/{2}/aliases' \
-                .format(args.application, args.environment, args.service)
-            res = self.client.post(url, { 'alias': args.alias })
+            url = '/me/applications/{0}/services/{2}/aliases' \
+                .format(args.application, args.service)
+            res = self.client.post(url, {'alias': args.alias})
             self.success('Alias "{0}" created for "{1}"'.format(
                 args.alias, args.service))
         elif args.subcmd == 'rm':
-            url = '/me/applications/{0}/environments/{1}/services/{2}/aliases/{3}' \
-                .format(args.application, args.environment, args.service, args.alias)
+            url = '/me/applications/{0}/services/{1}/aliases/{2}' \
+                .format(args.application, args.service, args.alias)
             self.client.delete(url)
             self.success('Alias "{0}" deleted from "{1}"'.format(
                 args.alias, args.service))
 
     @app_local
     def cmd_var(self, args):
-        url = '/me/applications/{0}/environments/{1}/variables'.format(args.application, args.environment)
+        url = '/me/applications/{0}/variables'.format(args.application)
         deploy = None
         if args.subcmd == 'list':
             var = self.client.get(url).item
@@ -400,7 +368,7 @@ class CLI(object):
         else:
             self.die('Unknown sub command {0}'.format(subcmd), stderr=True)
         if deploy:
-            self.deploy(args.application, args.environment)
+            self.deploy(args.application)
 
     @app_local
     def cmd_scale(self, args):
@@ -410,16 +378,16 @@ class CLI(object):
             value = int(value)
             instances[name] = value
         for name, value in instances.items():
-            url = '/me/applications/{0}/environments/{1}/services/{2}/instances' \
-                .format(args.application, args.environment, name)
+            url = '/me/applications/{0}/services/{1}/instances' \
+                .format(args.application, name)
             self.info('Changing instances of {0} to {1}'.format(name, value))
-            self.client.put(url, { 'instances': value })
-        self.deploy(args.application, args.environment)
+            self.client.put(url, {'instances': value})
+        self.deploy(args.application)
 
     @app_local
     def cmd_info(self, args):
         try:
-            url = '/me/applications/{0}/environments/{1}/services'.format(args.application, args.environment)
+            url = '/me/applications/{0}/services'.format(args.application)
             res = self.client.get(url)
         except RESTAPIError as e:
             if e.code == 404:
@@ -435,9 +403,6 @@ class CLI(object):
         url = '/me/applications/{0}'.format(args.application)
         res = self.client.get(url)
         repo = res.item.get('repository')
-
-        url = '/me/applications/{0}/environments/{1}'.format(args.application, args.environment)
-        res = self.client.get(url)
         revision = res.item.get('revision', None)
 
         print '--------'
@@ -463,10 +428,10 @@ class CLI(object):
     def cmd_url(self, args):
         def cb(service, urls):
             print '{0}: {1}'.format(service['name'], urls[0]['url'])
-        self.get_url(args.application, args.environment, cb)
+        self.get_url(args.application, cb)
 
-    def get_url(self, application, environment, cb, type='http'):
-        url = '/me/applications/{0}/environments/{1}/services'.format(application, environment)
+    def get_url(self, application, cb, type='http'):
+        url = '/me/applications/{0}/services'.format(application)
         res = self.client.get(url)
         for service in res.items:
             instance = service['instances'][0]
@@ -476,7 +441,7 @@ class CLI(object):
 
     @app_local
     def cmd_deploy(self, args):
-        self.deploy(args.application, args.environment, clean=args.clean, revision=args.revision)
+        self.deploy(args.application, clean=args.clean, revision=args.revision)
 
     @app_local
     def cmd_push(self, args):
@@ -484,7 +449,7 @@ class CLI(object):
         res = self.client.get(url)
         push_url = res.item.get('url')
         self.rsync_code(push_url)
-        self.deploy(args.application, args.environment, create=True, clean=args.clean)
+        self.deploy(args.application, clean=args.clean)
 
     def rsync_code(self, push_url, local_dir='.'):
         self.info('Syncing code from {0} to {1}'.format(local_dir, push_url))
@@ -510,20 +475,11 @@ class CLI(object):
         except OSError:
             self.die('rsync failed')
 
-    def deploy(self, application, environment, create=False, clean=False, revision=None):
-        self.info('Deploying {1} environment for {0}'.format(application, environment))
-        url = '/me/applications/{0}/environments/{1}/revision'.format(application, environment)
-        try:
-            self.client.put(url, {'revision': revision, 'clean': clean})
-        except RESTAPIError:
-            if create:
-                # FIXME this should no
-                url = '/me/applications/{0}/environments'.format(application)
-                self.client.post(url, { 'name': environment, 'revision': None })
-                self.patch_config({ 'environment': environment })
-            else:
-                raise
-        url = '/me/applications/{0}/environments/{1}/build_logs'.format(application, environment)
+    def deploy(self, application, clean=False, revision=None):
+        self.info('Deploying {0}'.format(application))
+        url = '/me/applications/{0}/revision'.format(application)
+        self.client.put(url, {'revision': revision, 'clean': clean})
+        url = '/me/applications/{0}/build_logs'.format(application)
         while True:
             res = self.client.get(url)
             for item in res.items:
@@ -544,7 +500,7 @@ class CLI(object):
             time.sleep(3)
         def display_url(service, urls):
             self.success('Application is live at {0}'.format(urls[0]['url']))
-        self.get_url(application, environment, display_url)
+        self.get_url(application, display_url)
 
     @app_local
     def cmd_ssh(self, args):
@@ -558,7 +514,7 @@ class CLI(object):
         except ValueError:
             self.die('usage: {0} ssh service[.N]'.format(self.cmd),
                 stderr=True)
-        url = '/me/applications/{0}/environments/{1}/services/{2}'.format(args.application, args.environment, svc)
+        url = '/me/applications/{0}/services/{1}'.format(args.application, svc)
         res = self.client.get(url)
         for service in res.items:
             try:
@@ -572,7 +528,8 @@ class CLI(object):
     @app_local
     def cmd_run(self, args):
         # TODO refactor with cmd_ssh
-        url = '/me/applications/{0}/environments/{1}/services/{2}'.format(args.application, args.environment, args.service)
+        url = '/me/applications/{0}/services/{1}'.format(args.application,
+            args.service)
         res = self.client.get(url)
         for service in res.items:
             ports = service['instances'][0].get('ports', [])
@@ -617,8 +574,8 @@ class CLI(object):
 
     @app_local
     def cmd_restart(self, args):
-        url = '/me/applications/{0}/environments/{1}/services/{2}/reboots' \
-            .format(args.application, args.environment, args.service)
+        url = '/me/applications/{0}/services/{1}/reboots' \
+            .format(args.application, args.service)
         try:
             self.client.post(url)
         except RESTAPIError as e:
@@ -642,27 +599,23 @@ class CLI(object):
 
     def cmd_history(self, args):
         if not args.all and args.application:
-            if args.environment is None:
-                args.environment = 'default'
-            url = '/me/applications/{0}/environments/{1}/activity' \
-                    .format(args.application, args.environment)
+            url = '/me/applications/{0}/activity'.format(args.application)
         else:
             url = '/me/activity'
         print 'time', ' ' * 14,
-        print 'category action application.environment.service (details)'
+        print 'category action application.service (details)'
         for activity in self.client.get(url).items:
             print '{ts:19} {category:8} {action:6}'.format(
                     ts=self.pprint_iso_dtime_local(activity['created_at']),
                     **activity),
             category = activity['category']
             if category == 'app':
-                print '{application}'.format(**activity)
-            elif category == 'env':
-                print '{application}.{environment}'.format(**activity),
-                if activity['action'] in ['new', 'deploy']:
-                    print '(revision={revision} build={build})'.format(**activity)
+                print '{application}'.format(**activity),
+                if activity['action'] == 'deploy':
+                    print '(revision={revision} build={build})' \
+                        .format(**activity)
                 else:
                     print
             elif category == 'alias':
-                print '{application}.{environment}.{service}'.format(**activity),
+                print '{application}.{service}'.format(**activity),
                 print '(cname={alias})'.format(**activity)
