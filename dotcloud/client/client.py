@@ -8,7 +8,7 @@ from .response import *
 from .errors import RESTAPIError, AuthenticationNotConfigured
 
 class RESTClient(object):
-    def __init__(self, endpoint='https://rest.dotcloud.com/1', debug=False):
+    def __init__(self, endpoint='https://api-experimental.dotcloud.com/v1', debug=False):
         self.endpoint = endpoint
         self.authenticator = None
         self.trace_id = None
