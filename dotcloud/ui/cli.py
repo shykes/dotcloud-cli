@@ -81,14 +81,14 @@ class CLI(object):
         except KeyboardInterrupt:
             pass
         except urllib2.URLError as e:
-            self.error('Accessing DotCloud API failed: {0}'.format(str(e)))
+            self.error('Accessing dotCloud API failed: {0}'.format(str(e)))
         finally:
             if args.trace and self.client.trace_id:
                 self.show_trace(self.client.trace_id)
 
     def ensure_app_local(self, args):
         if args.application is None:
-            self.die('DotCloud application is not connected. '
+            self.die('dotCloud application is not connected. '
                      'Run `{cmd} create <appname>` or `{cmd} connect <appname>`'.format(cmd=self.cmd))
 
     def app_local(func):
@@ -198,7 +198,7 @@ class CLI(object):
         client = RESTClient(endpoint=self.client.endpoint)
         client.authenticator = NullAuth()
         urlmap = client.get('/auth/discovery').item
-        username = self.prompt('DotCloud username')
+        username = self.prompt('dotCloud username')
         password = self.prompt('Password', noecho=True)
         credential = {'token_url': urlmap.get('token'),
             'key': CLIENT_KEY, 'secret': CLIENT_SECRET}
@@ -213,7 +213,7 @@ class CLI(object):
         self.global_config = GlobalConfig()  # reload
         self.setup_auth()
         self.get_keys()
-        self.success('DotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
+        self.success('dotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
 
     def authorize_client(self, url, credential, username, password):
         req = urllib2.Request(url)
