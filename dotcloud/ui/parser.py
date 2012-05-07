@@ -11,8 +11,13 @@ class Parser(argparse.ArgumentParser):
 
 
 def get_parser(name='dotcloud'):
-    parser = Parser(prog=name, description='dotcloud CLI')
-    parser.add_argument('--application', '-A', help='specify the application')
+
+    common_parser = Parser(prog=name, description='dotcloud CLI', add_help=False)
+    common_parser.add_argument('--application', '-A', help='specify the application')
+
+
+    parser = Parser(prog=name, description='dotcloud CLI',
+            parents=[common_parser])
     parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
     parser.add_argument('--trace', action='store_true', help='Display trace ID')
 
@@ -24,8 +29,8 @@ def get_parser(name='dotcloud'):
     setup = subcmd.add_parser('setup', help='Setup the client authentication')
 
 # LOGS ---------------------------
-    logs = subcmd.add_parser('logs', help='Play with logs') \
-            .add_subparsers(dest='logs')
+    logs = subcmd.add_parser('logs', help='Play with logs',
+            parents=[common_parser]).add_subparsers(dest='logs')
 
 # LOGS ---------------------------
 
@@ -34,7 +39,7 @@ def get_parser(name='dotcloud'):
             epilog='''With no arguments it displays all the logs for the latest
             deployment. If the deployment is not yet done, then follow the
             real-time logs until completion.
-            ''')
+            ''', parents=[common_parser])
 
     service_or_instance = logs_deploy.add_mutually_exclusive_group()
     service_or_instance.add_argument('service', nargs='?',
@@ -76,7 +81,8 @@ def get_parser(name='dotcloud'):
 # LOGS DEPLOY --------------------
 
 # LOGS APP -----------------------
-    logs_app = logs.add_parser('app', help='Watch your application in live')
+    logs_app = logs.add_parser('app', help='Watch your application in live',
+            parents=[common_parser])
 
     service_or_instance = logs_app.add_mutually_exclusive_group()
     service_or_instance.add_argument('service', nargs='?',
@@ -85,7 +91,8 @@ def get_parser(name='dotcloud'):
             help='Filter logs upon a given service instance (ex: www.0).')
 # LOGS APP -----------------------
 
-    logs_history = subcmd.add_parser('history', help='Your recent activity')
+    logs_history = subcmd.add_parser('history', help='Your recent activity',
+            parents=[common_parser])
 
     logs_history.add_argument('--all' ,'-a', action='store_true',
             help='Print out your activities among all your applications'
@@ -99,30 +106,37 @@ def get_parser(name='dotcloud'):
     conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app')
     conn.add_argument('application', help='specify the application')
 
-    destroy = subcmd.add_parser('destroy', help='Destroy an existing app')
+    destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
+            parents=[common_parser])
     destroy.add_argument('service', nargs='?', help='Specify the service')
 
     disconnect = subcmd.add_parser('disconnect', help='Disconnect the current directory from dotCloud app')
 
     app = subcmd.add_parser('app', help='Show the application name linked to the current directory')
 
-    info = subcmd.add_parser('info', help='Get information about the application')
+    info = subcmd.add_parser('info', help='Get information about the application',
+            parents=[common_parser])
     info.add_argument('service', nargs='?', help='Specify the service')
 
-    url = subcmd.add_parser('url', help='Show URL for the application')
+    url = subcmd.add_parser('url', help='Show URL for the application',
+            parents=[common_parser])
     url.add_argument('service', nargs='?', help='Specify the service')
 
-    ssh = subcmd.add_parser('ssh', help='SSH into the service')
+    ssh = subcmd.add_parser('ssh', help='SSH into the service',
+            parents=[common_parser])
     ssh.add_argument('service', help='Specify the service')
 
-    run = subcmd.add_parser('run', help='SSH into the service')
+    run = subcmd.add_parser('run', help='Run a command inside the service',
+            parents=[common_parser])
     run.add_argument('service', help='Specify the service')
-    run.add_argument('command', nargs='+', help='Run a command on the service')
+    run.add_argument('command', nargs='+', help='The command to execute')
 
-    push = subcmd.add_parser('push', help='Push the code')
+    push = subcmd.add_parser('push', help='Push the code',
+            parents=[common_parser])
     push.add_argument('--clean', action='store_true', help='clean build')
 
-    deploy = subcmd.add_parser('deploy', help='Deploy the code')
+    deploy = subcmd.add_parser('deploy', help='Deploy the code',
+            parents=[common_parser])
     deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
     deploy.add_argument('--clean', action='store_true', help='clean build')
 
@@ -136,13 +150,16 @@ def get_parser(name='dotcloud'):
                     'Values cannot be empty'.format(k))
         return kv
 
-    var = subcmd.add_parser('var', help='Manipulate application variables') \
-        .add_subparsers(dest='subcmd')
-    var_list = var.add_parser('list', help='List the application variables')
-    var_set = var.add_parser('set', help='Set new application variables')
+    var = subcmd.add_parser('var', help='Manipulate application variables',
+            parents=[common_parser]).add_subparsers(dest='subcmd')
+    var_list = var.add_parser('list', help='List the application variables',
+            parents=[common_parser])
+    var_set = var.add_parser('set', help='Set new application variables',
+            parents=[common_parser])
     var_set.add_argument('values', help='Application variables to set',
                          metavar='key=value', nargs='+', type=validate_var)
-    var_unset = var.add_parser('unset', help='Unset application variables')
+    var_unset = var.add_parser('unset', help='Unset application variables',
+            parents=[common_parser])
     var_unset.add_argument('variables', help='Application variables to unset', metavar='var', nargs='+')
 
     def validate_scaling(kv):
@@ -160,26 +177,31 @@ def get_parser(name='dotcloud'):
                     'Instance count must be a number'.format(k))
         return kv
 
-    scale = subcmd.add_parser('scale', help='Scale services')
+    scale = subcmd.add_parser('scale', help='Scale services',
+            parents=[common_parser])
     scale.add_argument('services', nargs='+', metavar='service=count',
                        help='Number of instances to set for each service e.g. www=2',
                        type=validate_scaling)
 
-    restart = subcmd.add_parser('restart', help='Restart the service')
+    restart = subcmd.add_parser('restart', help='Restart the service',
+            parents=[common_parser])
     restart.add_argument('service', help='Specify the service')
 
-    alias = subcmd.add_parser('alias', help='Manage aliases for the service') \
-        .add_subparsers(dest='subcmd')
-    alias_list = alias.add_parser('list', help='List the aliases')
-    alias_add = alias.add_parser('add', help='Add a new alias')
+    alias = subcmd.add_parser('alias', help='Manage aliases for the service',
+            parents=[common_parser]).add_subparsers(dest='subcmd')
+    alias_list = alias.add_parser('list', help='List the aliases',
+            parents=[common_parser])
+    alias_add = alias.add_parser('add', help='Add a new alias',
+            parents=[common_parser])
     alias_add.add_argument('service', help='Service to set alias for')
     alias_add.add_argument('alias', help='New alias (domain name)')
-    alias_rm = alias.add_parser('rm', help='Remove an alias')
+    alias_rm = alias.add_parser('rm', help='Remove an alias',
+            parents=[common_parser])
     alias_rm.add_argument('service', help='Service to remove alias from')
     alias_rm.add_argument('alias', help='Alias (domain name) to remove')
 
-    service = subcmd.add_parser('service', help='Manage services') \
-        .add_subparsers(dest='subcmd')
+    service = subcmd.add_parser('service', help='Manage services',
+            parents=[common_parser]).add_subparsers(dest='subcmd')
     service_list = service.add_parser('list', help='List the services')
 
     return parser
