@@ -240,7 +240,7 @@ class CLI(object):
 
     def cmd_list(self, args):
         res = self.client.get('/me/applications')
-        for app in sorted(res.items):
+        for app in sorted(res.items, key=lambda x: x['name']):
             if app['name'] == args.application:
                 print '* ' + self.colors.green(app['name'])
             else:
