@@ -41,7 +41,7 @@ class RESTClient(object):
 
     def delete(self, path):
         url = self.build_url(path)
-        req = urllib2.Request(url)
+        req = urllib2.Request(url, None, {'Content-Length': 0})
         req.get_method = lambda: 'DELETE'
         return self.request(req)
 
