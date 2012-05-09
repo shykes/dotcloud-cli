@@ -494,7 +494,7 @@ class CLI(object):
                 else:
                     source = '[{0}]'.format(source)
                 line = u'{0} {1} {2}'.format(
-                    time.strftime('%H:%M:%S', time.gmtime(item['timestamp'])),
+                    self.iso_dtime_local(item['timestamp']).strftime('%H:%M:%S'),
                     source,
                     item['message'])
                 print line
@@ -595,12 +595,11 @@ class CLI(object):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
         getattr(self, cmd)(args)
 
-    def pprint_iso_dtime_local(self, strdate):
+    def iso_dtime_local(self, strdate):
         bt = time.strptime(strdate, "%Y-%m-%dT%H:%M:%S.%fZ")
         ts = time.mktime(bt)
         dt = datetime.datetime.utcfromtimestamp(ts)
-        return str(dt)
-        return dt.strftime('%a, %d %b %Y %H:%M:%S')
+        return dt
 
     def cmd_history(self, args):
         if not args.all and args.application:
@@ -611,7 +610,7 @@ class CLI(object):
         print 'category action application.service (details)'
         for activity in self.client.get(url).items:
             print '{ts:19} {category:8} {action:6}'.format(
-                    ts=self.pprint_iso_dtime_local(activity['created_at']),
+                    ts=self.iso_dtime_local(activity['created_at']),
                     **activity),
             category = activity['category']
             if category == 'app':
