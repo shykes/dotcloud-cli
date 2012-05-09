@@ -88,8 +88,9 @@ class CLI(object):
 
     def ensure_app_local(self, args):
         if args.application is None:
-            self.die('dotCloud application is not connected. '
-                     'Run `{cmd} create <appname>` or `{cmd} connect <appname>`'.format(cmd=self.cmd))
+            self.die('No application specified. '
+                     'Run this command from an application directory '
+                     'or specify which application to use with --application.')
 
     def app_local(func):
         def wrapped(self, args):
