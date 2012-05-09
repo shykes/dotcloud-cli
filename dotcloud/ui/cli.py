@@ -381,7 +381,12 @@ class CLI(object):
             url = '/me/applications/{0}/services/{1}/instances' \
                 .format(args.application, name)
             self.info('Changing instances of {0} to {1}'.format(name, value))
-            self.client.put(url, {'instances': value})
+            try:
+                self.client.put(url, {'instances': value})
+            except RESTAPIError, e:
+                if e.code == 400:
+                    self.die('Failed to scale "{0}" service: {1}'.format(name, e))
+                raise
         self.deploy(args.application)
 
     @app_local
