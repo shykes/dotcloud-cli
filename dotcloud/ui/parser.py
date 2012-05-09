@@ -202,6 +202,7 @@ def get_parser(name='dotcloud'):
 
     service = subcmd.add_parser('service', help='Manage services',
             parents=[common_parser]).add_subparsers(dest='subcmd')
-    service_list = service.add_parser('list', help='List the services')
+    service_list = service.add_parser('list', help='List the services',
+            parents=[common_parser])
 
     return parser
