@@ -91,10 +91,10 @@ def get_parser(name='dotcloud'):
             help='Filter logs upon a given service instance (ex: www.0).')
 # LOGS APP -----------------------
 
-    logs_history = subcmd.add_parser('history', help='Your recent activity',
+    activity = subcmd.add_parser('activity', help='Your recent activity',
             parents=[common_parser])
 
-    logs_history.add_argument('--all' ,'-a', action='store_true',
+    activity.add_argument('--all' ,'-a', action='store_true',
             help='Print out your activities among all your applications'
             ' rather than the currently connected or selected one.'
             ' Implicit when not connected to any application')

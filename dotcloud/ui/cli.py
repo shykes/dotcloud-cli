@@ -601,7 +601,7 @@ class CLI(object):
         dt = datetime.datetime.utcfromtimestamp(ts)
         return dt
 
-    def cmd_history(self, args):
+    def cmd_activity(self, args):
         if not args.all and args.application:
             url = '/me/applications/{0}/activity'.format(args.application)
         else:
@@ -610,7 +610,7 @@ class CLI(object):
         print 'category action application.service (details)'
         for activity in self.client.get(url).items:
             print '{ts:19} {category:8} {action:6}'.format(
-                    ts=self.iso_dtime_local(activity['created_at']),
+                    ts=str(self.iso_dtime_local(activity['created_at'])),
                     **activity),
             category = activity['category']
             if category == 'app':
