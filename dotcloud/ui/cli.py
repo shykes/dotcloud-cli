@@ -59,15 +59,10 @@ class CLI(object):
         self.global_config.save()
         return True
 
-    def show_trace(self, id):
-        print '--> TraceID: ' + id
-
     def run(self, args):
         p = get_parser(self.cmd)
         args = p.parse_args(args)
         self.load_config(args)
-        if args.trace:
-            self.client.trace = lambda id: self.show_trace(id)
         cmd = 'cmd_{0}'.format(args.cmd)
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
@@ -82,9 +77,6 @@ class CLI(object):
             pass
         except urllib2.URLError as e:
             self.error('Accessing dotCloud API failed: {0}'.format(str(e)))
-        finally:
-            if args.trace and self.client.trace_id:
-                self.show_trace(self.client.trace_id)
 
     def ensure_app_local(self, args):
         if args.application is None:
@@ -131,11 +123,12 @@ class CLI(object):
         except:
             pass
 
-    def die(self, message, stderr=False):
-        if stderr:
-            print >>sys.stderr, message
-        else:
-            self.error(message)
+    def die(self, message=None, stderr=False):
+        if message is not None:
+            if stderr:
+                print >>sys.stderr, message
+            else:
+                self.error(message)
         sys.exit(1)
 
     def prompt(self, prompt, noecho=False):
@@ -168,7 +161,12 @@ class CLI(object):
             .format(c=self.colors, message=message)
 
     def default_error_handler(self, e):
-        self.die("Unhandled exception: {0}".format(e))
+        self.error('An unknown error has occurred: {0}'.format(e))
+        self.error('If the problem persists, please e-mail ' \
+            'support@dotcloud.com {0}' \
+            .format('and mention Trace ID "{0}"'.format(self.client.trace_id)
+                if self.client.trace_id else ''))
+        self.die()
 
     def error_authen(self, e):
         self.die("Authentication Error: {0}".format(e.code))
@@ -180,10 +178,12 @@ class CLI(object):
         self.die("Not Found: {0}".format(e.desc))
 
     def error_server(self, e):
-        #FIXME
-        if self.client.trace_id:
-            self.info('TraceID: {0}'.format(self.client.trace_id))
-        self.die('Server Error: {0}'.format(e.desc))
+        self.error('Server Error: {0}'.format(e.desc))
+        self.error('If the problem persists, please e-mail ' \
+            'support@dotcloud.com {0}' \
+            .format('and mention Trace ID "{0}"'.format(self.client.trace_id)
+                if self.client.trace_id else ''))
+        self.die()
 
     def cmd_check(self, args):
         # TODO Check ~/.dotcloud stuff
@@ -295,7 +295,7 @@ class CLI(object):
             if e.code == 404:
                 self.die('The {0} "{1}" does not exist.'.format(what_destroy, to_destroy))
             else:
-                self.die('Destroying the {0} "{1}" failed: {1}'.format(what_destroy, to_destroy, e))
+                self.die('Destroying the {0} "{1}" failed: {2}'.format(what_destroy, to_destroy, e))
         self.success('Destroyed.')
         if args.service is None:
             if self.config.get('application') == args.application:
@@ -485,25 +485,35 @@ class CLI(object):
         self.info('Deploying {0}'.format(application))
         url = '/me/applications/{0}/revision'.format(application)
         self.client.put(url, {'revision': revision, 'clean': clean})
+        deploy_trace_id = self.client.trace_id
         url = '/me/applications/{0}/build_logs'.format(application)
         while True:
-            res = self.client.get(url)
-            for item in res.items:
-                source = item.get('source', 'api')
-                if source == 'api':
-                    source = '-->'
-                else:
-                    source = '[{0}]'.format(source)
-                line = u'{0} {1} {2}'.format(
-                    self.iso_dtime_local(item['timestamp']).strftime('%H:%M:%S'),
-                    source,
-                    item['message'])
-                print line
-            next = res.find_link('next')
-            if not next:
-                break
-            url = next.get('href')
-            time.sleep(3)
+            try:
+                res = self.client.get(url)
+                for item in res.items:
+                    source = item.get('source', 'api')
+                    if source == 'api':
+                        source = '-->'
+                    else:
+                        source = '[{0}]'.format(source)
+                    line = u'{0} {1} {2}'.format(
+                        self.iso_dtime_local(item['timestamp']).strftime('%H:%M:%S'),
+                        source,
+                        item['message'])
+                    print line
+                next = res.find_link('next')
+                if not next:
+                    break
+                url = next.get('href')
+                time.sleep(3)
+            except KeyboardInterrupt:
+                self.error('You\'ve closed your log stream with Ctrl-C, ' \
+                    'but the deployment is still running in the background.')
+                self.error('If you aborted because of an error ' \
+                    '(e.g. the deployment got stuck), please e-mail ' \
+                    'support@dotcloud.com and mention Push ID "{0}"' \
+                    .format(deploy_trace_id))
+                self.die()
         def display_url(service, urls):
             self.success('Application is live at {0}'.format(urls[0]['url']))
         self.get_url(application, display_url)

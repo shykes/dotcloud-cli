@@ -19,7 +19,6 @@ def get_parser(name='dotcloud'):
     parser = Parser(prog=name, description='dotcloud CLI',
             parents=[common_parser])
     parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
-    parser.add_argument('--trace', action='store_true', help='Display trace ID')
 
     subcmd = parser.add_subparsers(dest='cmd')
 

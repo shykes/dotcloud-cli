@@ -12,7 +12,6 @@ class RESTClient(object):
         self.endpoint = endpoint
         self.authenticator = None
         self.trace_id = None
-        self.trace = None
         self.debug = debug
 
     def build_url(self, path):
@@ -57,8 +56,6 @@ class RESTClient(object):
             raise AuthenticationNotConfigured
         self.authenticator.authenticate(req)
         req.add_header('Accept', 'application/json')
-        if self.trace_id:
-            req.add_header('X-DotCloud-TraceID', self.trace_id)
         if self.debug:
             print >>sys.stderr, '### {method} {url} data=|{data}|'.format(
                 method  = req.get_method(),
@@ -67,13 +64,18 @@ class RESTClient(object):
             )
         try:
             res = urllib2.urlopen(req)
-            if res and self.debug:
-                print >>sys.stderr, '### {code}'.format(code=res.code)
             self.trace_id = res.headers.get('X-DotCloud-TraceID')
-            if self.trace:
-                self.trace(self.trace_id)
+            if res and self.debug:
+                print >>sys.stderr, '### {code} TraceID:{trace_id}'.format(
+                    code=res.code,
+                    trace_id=self.trace_id)
             return self.make_response(res)
         except urllib2.HTTPError, e:
+            self.trace_id = e.headers.get('X-DotCloud-TraceID')
+            if self.debug:
+                print >>sys.stderr, '### {code} TraceID:{trace_id}'.format(
+                    code=e.code,
+                    trace_id=self.trace_id)
             if e.code == 401 and self.authenticator.retriable:
                 if self.authenticator.prepare_retry():
                     return self.request(req)
