@@ -1,4 +1,4 @@
-import urllib2
+import requests
 import json
 import sys
 import os
@@ -7,12 +7,39 @@ from .auth import BasicAuth, OAuth2Auth
 from .response import *
 from .errors import RESTAPIError, AuthenticationNotConfigured
 
+
 class RESTClient(object):
     def __init__(self, endpoint='https://api-experimental.dotcloud.com/v1', debug=False):
         self.endpoint = endpoint
-        self.authenticator = None
-        self.trace_id = None
         self.debug = debug
+        self.authenticator = None
+        self._make_session()
+
+    def _make_session(self):
+        headers = {'Accept': 'application/json'}
+        hooks = {
+            'args': lambda args: self.authenticator.args_hook(args),
+            'pre_request': self._pre_request_hook,
+            'response': self._response_hook
+        }
+        self.session = requests.session(headers=headers, hooks=hooks,
+            verify=True)
+
+    def _pre_request_hook(self, request):
+        self.authenticator.pre_request_hook(request)
+        if self.debug:
+            print >>sys.stderr, '### {method} {url} data={data}'.format(
+                method  = request.method,
+                url     = request.path_url,
+                data    = request.data
+            )
+
+    def _response_hook(self, response):
+        self.authenticator.response_hook(response)
+        if self.debug:
+            print >>sys.stderr, '### {code} TraceID:{trace_id}'.format(
+                code=response.status_code,
+                trace_id=response.headers['X-DotCloud-TraceID'])
 
     def build_url(self, path):
         if path.startswith('/'):
@@ -21,74 +48,41 @@ class RESTClient(object):
             return path
 
     def get(self, path):
-        url = self.build_url(path)
-        req = urllib2.Request(url)
-        return self.request(req)
+        return self.make_response(self.session.get(self.build_url(path)))
 
     def post(self, path, payload={}):
-        url = self.build_url(path)
-        data = json.dumps(payload)
-        req = urllib2.Request(url, data, {'Content-Type': 'application/json'})
-        return self.request(req)
+        return self.make_response(
+            self.session.post(self.build_url(path), data=json.dumps(payload),
+                headers={'Content-Type': 'application/json'}))
 
     def put(self, path, payload={}):
-        url = self.build_url(path)
-        data = json.dumps(payload)
-        req = urllib2.Request(url, data, {'Content-Type': 'application/json'})
-        req.get_method = lambda: 'PUT'
-        return self.request(req)
+        return self.make_response(
+            self.session.put(self.build_url(path), data=json.dumps(payload),
+                headers={'Content-Type': 'application/json'}))
 
     def delete(self, path):
-        url = self.build_url(path)
-        req = urllib2.Request(url, None, {'Content-Length': 0})
-        req.get_method = lambda: 'DELETE'
-        return self.request(req)
+        return self.make_response(
+            self.session.delete(self.build_url(path),
+                headers={'Content-Length': '0'}))
 
     def patch(self, path, payload={}):
-        url = self.build_url(path)
-        data = json.dumps(payload)
-        req = urllib2.Request(url, data, {'Content-Type': 'application/json'})
-        req.get_method = lambda: 'PATCH'
-        return self.request(req)
-
-    def request(self, req):
-        if not self.authenticator:
-            raise AuthenticationNotConfigured
-        self.authenticator.authenticate(req)
-        req.add_header('Accept', 'application/json')
-        if self.debug:
-            print >>sys.stderr, '### {method} {url} data=|{data}|'.format(
-                method  = req.get_method(),
-                url     = req.get_full_url(),
-                data    = req.get_data()
-            )
-        try:
-            res = urllib2.urlopen(req)
-            self.trace_id = res.headers.get('X-DotCloud-TraceID')
-            if res and self.debug:
-                print >>sys.stderr, '### {code} TraceID:{trace_id}'.format(
-                    code=res.code,
-                    trace_id=self.trace_id)
-            return self.make_response(res)
-        except urllib2.HTTPError, e:
-            self.trace_id = e.headers.get('X-DotCloud-TraceID')
-            if self.debug:
-                print >>sys.stderr, '### {code} TraceID:{trace_id}'.format(
-                    code=e.code,
-                    trace_id=self.trace_id)
-            if e.code == 401 and self.authenticator.retriable:
-                if self.authenticator.prepare_retry():
-                    return self.request(req)
-            return self.make_response(e)
-
+        return self.make_response(
+            self.session.patch(self.build_url(path), data=json.dumps(payload),
+                headers={'Content-Type': 'application/json'}))
     def make_response(self, res):
+        trace_id = res.headers.get('X-DotCloud-TraceID')
         if res.headers['Content-Type'] == 'application/json':
-            data = json.loads(res.read())
-        elif res.code == 204:
-            return None
+            data = json.loads(res.text)
+        elif res.status_code == requests.codes.no_content:
+            return BaseResponse.create(res=res, trace_id=trace_id)
         else:
-            raise RESTAPIError(code=500,
-                               desc='Unsupported Media type: {0}'.format(res.headers['Content-Type']))
-        if res.code >= 400:
-            raise RESTAPIError(code=res.code, desc=data['error']['description'])
-        return BaseResponse.create(res=res, data=data)
+            raise RESTAPIError(code=requests.codes.server_error,
+                               desc='Server responded with unsupported ' \
+                                'media type: {0} (status: {1})' \
+                                .format(res.headers['Content-Type'],
+                                    res.status_code),
+                               trace_id=trace_id)
+        if not res.ok:
+            raise RESTAPIError(code=res.status_code,
+                desc=data['error']['description'], trace_id=trace_id)
+        return BaseResponse.create(res=res, data=data, trace_id=trace_id)

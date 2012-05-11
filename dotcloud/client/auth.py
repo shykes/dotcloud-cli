@@ -1,31 +1,32 @@
-import base64
-import urllib2
-import urllib
 import json
+import requests
+from requests.auth import HTTPBasicAuth
 
-class NullAuth(object):
-    @property
-    def retriable(self):
-        return False
-
-    def authenticate(self, request):
+class BaseAuth(object):
+    def args_hook(self, args):
         pass
 
-class BasicAuth(object):
+    def pre_request_hook(self, request):
+        pass
+
+    def response_hook(self, response):
+        pass
+
+
+class NullAuth(BaseAuth):
+    pass
+
+
+class BasicAuth(BaseAuth):
     def __init__(self, username, password):
         self.username = username
         self.password = password
 
-    @property
-    def retriable(self):
-        return False
+    def args_hook(self, args):
+        args['auth'] = HTTPBasicAuth(self.username, self.password)
 
-    def authenticate(self, request):
-        user_pass = '{0}:{1}'.format(urllib2.quote(self.username), urllib2.quote(self.password))
-        credentials = base64.b64encode(user_pass).strip()
-        request.add_header('Authorization', 'Basic {0}'.format(credentials))
 
-class OAuth2Auth(object):
+class OAuth2Auth(BaseAuth):
     def __init__(self, access_token=None, refresh_token=None, scope=None,
                  client_id=None, client_secret=None, token_url=None):
         self.access_token = access_token
@@ -36,29 +37,34 @@ class OAuth2Auth(object):
         self.token_url = token_url
         self._retry_count = 0
 
-    @property
-    def retriable(self):
-        return self._retry_count < 1
+    def pre_request_hook(self, request):
+        request.headers.setdefault('Authorization',
+            'Bearer {0}'.format(self.access_token))
 
-    def authenticate(self, request):
-        request.add_header('Authorization', 'Bearer {0}'.format(self.access_token))
+    def response_hook(self, response):
+        if response.status_code == requests.codes.unauthorized:
+            if self._retry_count >= 1:
+                return
+            self._retry_count = self._retry_count + 1
+            if self.refresh_credentials():
+                response.request.send(anyway=True)
 
-    def prepare_retry(self):
-        self._retry_count = self._retry_count + 1
-        req = urllib2.Request(self.token_url)
+    def refresh_credentials(self):
         data = {
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
             'client_id': self.client_id,
-            'client_secret': self.client_secret
+            'client_secret': self.client_secret,
+            'scope': self.scope or ''
         }
-        if self.scope is not None:
-            data['scope'] = self.scope
-        req.add_data(urllib.urlencode(data))
-        res = json.load(urllib2.urlopen(req))
-        if res.get('access_token'):
-            self.access_token = res['access_token']
-            self.refresh_token = res['refresh_token']
+        res = requests.post(self.token_url, data=data)
+        res.raise_for_status()
+        if not res.ok:
+            return False
+        data = json.loads(res.text)
+        if data.get('access_token'):
+            self.access_token = data['access_token']
+            self.refresh_token = data['refresh_token']
             if hasattr(self, 'refresh_callback'):
-                return self.refresh_callback(res)
-        return
+                return self.refresh_callback(data)
+        return False

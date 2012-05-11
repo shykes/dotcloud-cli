@@ -15,9 +15,8 @@ import re
 import time
 import shutil
 import getpass
+import requests
 import urllib2
-import urllib
-import base64
 import datetime
 
 class CLI(object):
@@ -164,8 +163,8 @@ class CLI(object):
         self.error('An unknown error has occurred: {0}'.format(e))
         self.error('If the problem persists, please e-mail ' \
             'support@dotcloud.com {0}' \
-            .format('and mention Trace ID "{0}"'.format(self.client.trace_id)
-                if self.client.trace_id else ''))
+            .format('and mention Trace ID "{0}"'.format(e.trace_id)
+                if e.trace_id else ''))
         self.die()
 
     def error_authen(self, e):
@@ -181,8 +180,8 @@ class CLI(object):
         self.error('Server Error: {0}'.format(e.desc))
         self.error('If the problem persists, please e-mail ' \
             'support@dotcloud.com {0}' \
-            .format('and mention Trace ID "{0}"'.format(self.client.trace_id)
-                if self.client.trace_id else ''))
+            .format('and mention Trace ID "{0}"'.format(e.trace_id)
+                if e.trace_id else ''))
         self.die()
 
     def cmd_check(self, args):
@@ -217,19 +216,16 @@ class CLI(object):
         self.success('dotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
 
     def authorize_client(self, url, credential, username, password):
-        req = urllib2.Request(url)
-        user_pass = '{0}:{1}'.format(urllib2.quote(credential['key']), urllib2.quote(credential['secret']))
-        basic_auth = base64.b64encode(user_pass).strip()
-        req.add_header('Authorization', 'Basic {0}'.format(basic_auth))
         form = {
             'username': username,
             'password': password,
             'grant_type': 'password',
             'client_id': credential['key']
         }
-        req.add_data(urllib.urlencode(form))
-        res = urllib2.urlopen(req)
-        return json.load(res)
+        res = requests.post(url, data=form,
+            auth=(credential['key'], credential['secret']))
+        res.raise_for_status()
+        return json.loads(res.text)
 
     def get_keys(self):
         res = self.client.get('/me/private_keys')
@@ -295,7 +291,7 @@ class CLI(object):
             if e.code == 404:
                 self.die('The {0} "{1}" does not exist.'.format(what_destroy, to_destroy))
             else:
-                self.die('Destroying the {0} "{1}" failed: {2}'.format(what_destroy, to_destroy, e))
+                raise
         self.success('Destroyed.')
         if args.service is None:
             if self.config.get('application') == args.application:
@@ -484,8 +480,8 @@ class CLI(object):
     def deploy(self, application, clean=False, revision=None):
         self.info('Deploying {0}'.format(application))
         url = '/me/applications/{0}/revision'.format(application)
-        self.client.put(url, {'revision': revision, 'clean': clean})
-        deploy_trace_id = self.client.trace_id
+        response = self.client.put(url, {'revision': revision, 'clean': clean})
+        deploy_trace_id = response.trace_id
         url = '/me/applications/{0}/build_logs'.format(application)
         while True:
             try:

@@ -35,6 +35,6 @@ setup(
     scripts  = [
         'bin/dotcloud2'
     ],
-    install_requires = ['argparse', 'colorama'],
+    install_requires = ['argparse', 'requests', 'colorama'],
     zip_safe = False
 )
