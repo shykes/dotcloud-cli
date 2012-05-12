@@ -68,13 +68,58 @@ def get_parser(name='dotcloud'):
     check = subcmd.add_parser('check', help='Check the installation and authentication')
     setup = subcmd.add_parser('setup', help='Setup the client authentication')
 
-# LOGS ---------------------------
+    create = subcmd.add_parser('create', help='Create a new application')
+    create.add_argument('application', help='specify the application')
+    create.add_argument('--repo')
+
+    conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app')
+    conn.add_argument('application', help='specify the application')
+
+    destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
+            parents=[common_parser])
+    destroy.add_argument('service', nargs='?', help='Specify the service')
+
+    disconnect = subcmd.add_parser('disconnect', help='Disconnect the current directory from dotCloud app')
+
+    app = subcmd.add_parser('app', help='Show the application name linked to the current directory')
+
+    history = subcmd.add_parser('history', help='Your recent activity',
+            parents=[common_parser])
+
+    history.add_argument('--all' ,'-a', action='store_true',
+            help='Print out your activities among all your applications'
+            ' rather than the currently connected or selected one.'
+            ' Implicit when not connected to any application')
+
+    info = subcmd.add_parser('info', help='Get information about the application',
+            parents=[common_parser])
+    info.add_argument('service', nargs='?', help='Specify the service')
+
+    url = subcmd.add_parser('url', help='Show URL for the application',
+            parents=[common_parser])
+    url.add_argument('service', nargs='?', help='Specify the service')
+
+    ssh = subcmd.add_parser('ssh', help='SSH into the service',
+            parents=[common_parser])
+    ssh.add_argument('service', help='Specify the service')
+
+    run = subcmd.add_parser('run', help='Run a command inside the service',
+            parents=[common_parser])
+    run.add_argument('service', help='Specify the service')
+    run.add_argument('command', nargs='+', help='The command to execute')
+
+    push = subcmd.add_parser('push', help='Push the code',
+            parents=[common_parser])
+    push.add_argument('--clean', action='store_true', help='clean build')
+
+    deploy = subcmd.add_parser('deploy', help='Deploy the code',
+            parents=[common_parser])
+    deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
+    deploy.add_argument('--clean', action='store_true', help='clean build')
+
     logs = subcmd.add_parser('logs', help='Play with logs',
             parents=[common_parser]).add_subparsers(dest='logs')
 
-# LOGS ---------------------------
-
-# LOGS DEPLOY --------------------
     logs_deploy = logs.add_parser('deploy', help='Play with deployments logs',
             epilog='''With no arguments it displays all the logs for the latest
             deployment. If the deployment is not yet done, then follow the
@@ -118,9 +163,6 @@ def get_parser(name='dotcloud'):
             ' If --no-follow, display up to DATE'
             )
 
-# LOGS DEPLOY --------------------
-
-# LOGS APP -----------------------
     logs_app = logs.add_parser('app', help='Watch your application in live',
             parents=[common_parser])
 
@@ -129,56 +171,6 @@ def get_parser(name='dotcloud'):
             help='Filter logs upon a given service (ex: www).')
     service_or_instance.add_argument('instance', nargs='?',
             help='Filter logs upon a given service instance (ex: www.0).')
-# LOGS APP -----------------------
-
-    logs_history = subcmd.add_parser('history', help='Your recent activity',
-            parents=[common_parser])
-
-    logs_history.add_argument('--all' ,'-a', action='store_true',
-            help='Print out your activities among all your applications'
-            ' rather than the currently connected or selected one.'
-            ' Implicit when not connected to any application')
-
-    create = subcmd.add_parser('create', help='Create a new application')
-    create.add_argument('application', help='specify the application')
-    create.add_argument('--repo')
-
-    conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app')
-    conn.add_argument('application', help='specify the application')
-
-    destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
-            parents=[common_parser])
-    destroy.add_argument('service', nargs='?', help='Specify the service')
-
-    disconnect = subcmd.add_parser('disconnect', help='Disconnect the current directory from dotCloud app')
-
-    app = subcmd.add_parser('app', help='Show the application name linked to the current directory')
-
-    info = subcmd.add_parser('info', help='Get information about the application',
-            parents=[common_parser])
-    info.add_argument('service', nargs='?', help='Specify the service')
-
-    url = subcmd.add_parser('url', help='Show URL for the application',
-            parents=[common_parser])
-    url.add_argument('service', nargs='?', help='Specify the service')
-
-    ssh = subcmd.add_parser('ssh', help='SSH into the service',
-            parents=[common_parser])
-    ssh.add_argument('service', help='Specify the service')
-
-    run = subcmd.add_parser('run', help='Run a command inside the service',
-            parents=[common_parser])
-    run.add_argument('service', help='Specify the service')
-    run.add_argument('command', nargs='+', help='The command to execute')
-
-    push = subcmd.add_parser('push', help='Push the code',
-            parents=[common_parser])
-    push.add_argument('--clean', action='store_true', help='clean build')
-
-    deploy = subcmd.add_parser('deploy', help='Deploy the code',
-            parents=[common_parser])
-    deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
-    deploy.add_argument('--clean', action='store_true', help='clean build')
 
     def validate_var(kv):
         if kv.count('=') != 1:
