@@ -30,7 +30,8 @@ setup(
     packages = [
         'dotcloud',
         'dotcloud.ui',
-        'dotcloud.client'
+        'dotcloud.client',
+        'dotcloud.packages'
     ],
     scripts  = [
         'bin/dotcloud2'

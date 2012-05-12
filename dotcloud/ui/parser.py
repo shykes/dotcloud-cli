@@ -1,7 +1,7 @@
 import argparse
 import sys
 from .version import VERSION
-
+from ..packages.bytesconverter import human2bytes
 
 class Parser(argparse.ArgumentParser):
     def error(self, message):
@@ -10,11 +10,52 @@ class Parser(argparse.ArgumentParser):
         sys.exit(1)
 
 
+class ScaleOperation(object):
+    def __init__(self, kv):
+        if kv.count('=') != 1:
+            raise argparse.ArgumentTypeError('Invalid action "{0}"' \
+                .format(kv))
+        (k, v) = kv.split('=')
+        if not v:
+            raise argparse.ArgumentTypeError('Invalid value for "{0}"' \
+                    .format(k))
+        if ':' in k:
+            (self.name, self.action) = k.split(':', 1)
+        else:
+            (self.name, self.action) = (k, 'instances')
+
+        if self.action not in ['instances', 'memory']:
+            raise argparse.ArgumentTypeError('Invalid action for "{0}": ' \
+                    'Action must be either "instances" or "memory"' \
+                    .format(self.action))
+
+        self.original_value = v
+        if self.action == 'instances':
+            try:
+                self.value = int(v)
+            except ValueError:
+                raise argparse.ArgumentTypeError('Invalid value for "{0}": ' \
+                        'Instance count must be a number'.format(kv))
+        elif self.action == 'memory':
+            # Perform sone sanitization of the memory value
+            v = v.upper()
+            # Strip the trailing B as human2bytes doesn't handle those
+            if v.endswith('B'):
+                v = v[:-1]
+            if v.isdigit():
+                self.value = int(v)
+            else:
+                try:
+                    self.value = human2bytes(v)
+                except Exception as e:
+                    raise argparse.ArgumentTypeError('Invalid value for "{0}"' \
+                        .format(kv))
+
+
 def get_parser(name='dotcloud'):
 
     common_parser = Parser(prog=name, description='dotcloud CLI', add_help=False)
     common_parser.add_argument('--application', '-A', help='specify the application')
-
 
     parser = Parser(prog=name, description='dotcloud CLI',
             parents=[common_parser])
@@ -161,26 +202,13 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     var_unset.add_argument('variables', help='Application variables to unset', metavar='var', nargs='+')
 
-    def validate_scaling(kv):
-        if kv.count('=') != 1:
-            raise argparse.ArgumentTypeError('You must specify a number ' \
-                    'of instances for service "{0}" (e.g. {0}=3)'.format(kv, kv))
-        (k, v) = kv.split('=')
-        if not v:
-            raise argparse.ArgumentTypeError('Invalid value for "{0}": '\
-                    'Instance count cannot be empty'.format(k))
-        try:
-            v = int(v)
-        except ValueError:
-            raise argparse.ArgumentTypeError('Invalid value for "{0}": ' \
-                    'Instance count must be a number'.format(k))
-        return kv
 
     scale = subcmd.add_parser('scale', help='Scale services',
+            description='Manage horizontal (instances) or vertical (memory) scaling of services',
             parents=[common_parser])
-    scale.add_argument('services', nargs='+', metavar='service=count',
-                       help='Number of instances to set for each service e.g. www=2',
-                       type=validate_scaling)
+    scale.add_argument('services', nargs='+', metavar='service:action=value',
+                       help='Scaling action to perform e.g. www:instances=2 or www:memory=1gb',
+                       type=ScaleOperation)
 
     restart = subcmd.add_parser('restart', help='Restart the service',
             parents=[common_parser])

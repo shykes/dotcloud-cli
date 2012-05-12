@@ -5,6 +5,7 @@ from .colors import Colors
 from ..client import RESTClient
 from ..client.errors import RESTAPIError, AuthenticationNotConfigured
 from ..client.auth import BasicAuth, NullAuth, OAuth2Auth
+from ..packages.bytesconverter import bytes2human
 
 import sys
 import codecs
@@ -156,7 +157,7 @@ class CLI(object):
 
     def success(self, message):
         print '{c.green}{c.bright}==>{c.reset} ' \
-            '{c.bright}{message}{c.reset}' \
+            '{message}' \
             .format(c=self.colors, message=message)
 
     def default_error_handler(self, e):
@@ -369,22 +370,48 @@ class CLI(object):
 
     @app_local
     def cmd_scale(self, args):
-        instances = {}
+        def round_memory(value):
+            # Memory scaling has to be performed in increments of 32M
+            step = 32 * (1024 * 1024)
+            diff = value % step
+            # If the memory is not an exact increment of 32M, then
+            # round it to the closest value (either higher or lower)
+            if diff != 0:
+                if diff <= (step / 2) and value > step:
+                    value -= diff
+                else:
+                    value += step - diff
+            return value
+
         for svc in args.services:
-            name, value = svc.split('=', 2)
-            value = int(value)
-            instances[name] = value
-        for name, value in instances.items():
-            url = '/me/applications/{0}/services/{1}/instances' \
-                .format(args.application, name)
-            self.info('Changing instances of {0} to {1}'.format(name, value))
             try:
-                self.client.put(url, {'instances': value})
+                if svc.action == 'instances':
+                    url = '/me/applications/{0}/services/{1}/instances' \
+                        .format(args.application, svc.name)
+                    self.info('Changing instances of {0} to {1}'.format(
+                        svc.name, svc.original_value))
+                    self.client.put(url, {'instances': svc.value})
+                elif svc.action == 'memory':
+                    memory = round_memory(svc.value)
+                    self.info('Changing memory of {0} to {1}B'.format(
+                        svc.name, bytes2human(memory)))
+                    url = '/me/applications/{0}/services/{1}/memory' \
+                        .format(args.application, svc.name)
+                    self.client.put(url, {'memory': memory})
             except RESTAPIError, e:
-                if e.code == 400:
-                    self.die('Failed to scale "{0}" service: {1}'.format(name, e))
-                raise
-        self.deploy(args.application)
+                if e.code == requests.codes.bad_request:
+                    self.die('Failed to scale {0} of "{1}": {2}'.format(
+                        svc.action, svc.name, e))
+        # If we changed the number of instances of any service, then we need
+        # to trigger a deploy
+        for svc in args.services:
+            if svc.action == 'instances':
+                self.deploy(args.application)
+                break
+        self.success('Successfully scaled {0} to {1}'.format(args.application,
+            ' '.join(['{0}:{1}={2}'.format(svc.name, svc.action,
+                    svc.original_value)
+                    for svc in args.services])))
 
     @app_local
     def cmd_info(self, args):
