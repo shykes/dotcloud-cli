@@ -458,18 +458,49 @@ class CLI(object):
 
     @app_local
     def cmd_url(self, args):
-        def cb(service, urls):
-            print '{0}: {1}'.format(service['name'], urls[0]['url'])
-        self.get_url(args.application, cb)
+        if args.service:
+            urls = self.get_url(args.application, args.service)
+            if urls:
+                print urls[-1]['url']
+        else:
+            for (service, urls) in self.get_url(args.application).items():
+                print '{0}: {1}'.format(service, urls[-1]['url'])
 
-    def get_url(self, application, cb, type='http'):
-        url = '/me/applications/{0}/services'.format(application)
-        res = self.client.get(url)
-        for service in res.items:
-            instance = service['instances'][0]
-            u = [p for p in instance.get('ports', []) if p['name'] == type]
-            if len(u) > 0:
-                cb(service, u)
+    @app_local
+    def cmd_open(self, args):
+        import webbrowser
+
+        if args.service:
+            urls = self.get_url(args.application, args.service)
+            if urls:
+                webbrowser.open(urls[-1]['url'])
+        else:
+            urls = self.get_url(args.application)
+            if not urls:
+                self.die('No URLs found for the application')
+            if len(urls) > 1:
+                self.die('More than one service exposes an URL. ' \
+                    'Please specify the name of the one you want to open: {0}' \
+                    .format(', '.join(urls.keys())))
+            webbrowser.open(urls.values()[0][-1]['url'])
+
+    def get_url(self, application, service=None, type='http'):
+        if service is None:
+            urls = {}
+            url = '/me/applications/{0}/services'.format(application)
+            res = self.client.get(url)
+            for service in res.items:
+                instance = service['instances'][0]
+                u = [p for p in instance.get('ports', []) if p['name'] == type]
+                if len(u) > 0:
+                    urls[service['name']] = u
+            return urls
+        else:
+            url = '/me/applications/{0}/services/{1}'.format(application,
+                service)
+            res = self.client.get(url)
+            instance = res.item['instances'][0]
+            return [p for p in instance.get('ports', []) if p['name'] == type]
 
     @app_local
     def cmd_deploy(self, args):
@@ -540,10 +571,12 @@ class CLI(object):
                     'support@dotcloud.com and mention Push ID "{0}"' \
                     .format(deploy_trace_id))
                 self.die()
-        def display_url(service, urls):
+        urls = self.get_url(application)
+        if urls:
             self.success('Application is live at {c.bright}{url}{c.reset}' \
-                .format(url=urls[0]['url'], c=self.colors))
-        self.get_url(application, display_url)
+                .format(url=urls.values()[-1][-1]['url'], c=self.colors))
+        else:
+            self.success('Application is live')
 
     @app_local
     def cmd_ssh(self, args):

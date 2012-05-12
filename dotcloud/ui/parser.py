@@ -99,6 +99,10 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     url.add_argument('service', nargs='?', help='Specify the service')
 
+    open_ = subcmd.add_parser('open', help='Open the application in the browser',
+            parents=[common_parser])
+    open_.add_argument('service', nargs='?', help='Specify the service')
+
     ssh = subcmd.add_parser('ssh', help='SSH into the service',
             parents=[common_parser])
     ssh.add_argument('service', help='Specify the service')
