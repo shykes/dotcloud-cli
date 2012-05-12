@@ -190,8 +190,11 @@ class CLI(object):
         try:
             self.info('Checking the authentication status')
             res = self.client.get('/me')
-            self.success('Client is authenticated as {0}'.format(res.item['username']))
+            self.success('Client is authenticated as ' \
+                '{c.bright}{username}{c.reset}' \
+                .format(username=res.item['username'], c=self.colors))
         except:
+            raise
             self.die('Authentication failed. Run `{cmd} setup` to redo the authentication'.format(cmd=self.cmd))
         self.get_keys()
 
@@ -538,7 +541,8 @@ class CLI(object):
                     .format(deploy_trace_id))
                 self.die()
         def display_url(service, urls):
-            self.success('Application is live at {0}'.format(urls[0]['url']))
+            self.success('Application is live at {c.bright}{url}{c.reset}' \
+                .format(url=urls[0]['url'], c=self.colors))
         self.get_url(application, display_url)
 
     @app_local
