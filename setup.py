@@ -30,11 +30,12 @@ setup(
     packages = [
         'dotcloud',
         'dotcloud.ui',
-        'dotcloud.client'
+        'dotcloud.client',
+        'dotcloud.packages'
     ],
     scripts  = [
         'bin/dotcloud2'
     ],
-    install_requires = ['argparse', 'colorama'],
+    install_requires = ['argparse', 'requests', 'colorama'],
     zip_safe = False
 )

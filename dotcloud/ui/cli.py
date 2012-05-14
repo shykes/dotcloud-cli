@@ -5,6 +5,7 @@ from .colors import Colors
 from ..client import RESTClient
 from ..client.errors import RESTAPIError, AuthenticationNotConfigured
 from ..client.auth import BasicAuth, NullAuth, OAuth2Auth
+from ..packages.bytesconverter import bytes2human
 
 import sys
 import codecs
@@ -15,9 +16,8 @@ import re
 import time
 import shutil
 import getpass
+import requests
 import urllib2
-import urllib
-import base64
 import datetime
 
 class CLI(object):
@@ -59,15 +59,10 @@ class CLI(object):
         self.global_config.save()
         return True
 
-    def show_trace(self, id):
-        print '--> TraceID: ' + id
-
     def run(self, args):
         p = get_parser(self.cmd)
         args = p.parse_args(args)
         self.load_config(args)
-        if args.trace:
-            self.client.trace = lambda id: self.show_trace(id)
         cmd = 'cmd_{0}'.format(args.cmd)
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
@@ -82,14 +77,12 @@ class CLI(object):
             pass
         except urllib2.URLError as e:
             self.error('Accessing dotCloud API failed: {0}'.format(str(e)))
-        finally:
-            if args.trace and self.client.trace_id:
-                self.show_trace(self.client.trace_id)
 
     def ensure_app_local(self, args):
         if args.application is None:
-            self.die('dotCloud application is not connected. '
-                     'Run `{cmd} create <appname>` or `{cmd} connect <appname>`'.format(cmd=self.cmd))
+            self.die('No application specified. '
+                     'Run this command from an application directory '
+                     'or specify which application to use with --application.')
 
     def app_local(func):
         def wrapped(self, args):
@@ -130,11 +123,12 @@ class CLI(object):
         except:
             pass
 
-    def die(self, message, stderr=False):
-        if stderr:
-            print >>sys.stderr, message
-        else:
-            self.error(message)
+    def die(self, message=None, stderr=False):
+        if message is not None:
+            if stderr:
+                print >>sys.stderr, message
+            else:
+                self.error(message)
         sys.exit(1)
 
     def prompt(self, prompt, noecho=False):
@@ -163,11 +157,16 @@ class CLI(object):
 
     def success(self, message):
         print '{c.green}{c.bright}==>{c.reset} ' \
-            '{c.bright}{message}{c.reset}' \
+            '{message}' \
             .format(c=self.colors, message=message)
 
     def default_error_handler(self, e):
-        self.die("Unhandled exception: {0}".format(e))
+        self.error('An unknown error has occurred: {0}'.format(e))
+        self.error('If the problem persists, please e-mail ' \
+            'support@dotcloud.com {0}' \
+            .format('and mention Trace ID "{0}"'.format(e.trace_id)
+                if e.trace_id else ''))
+        self.die()
 
     def error_authen(self, e):
         self.die("Authentication Error: {0}".format(e.code))
@@ -179,18 +178,23 @@ class CLI(object):
         self.die("Not Found: {0}".format(e.desc))
 
     def error_server(self, e):
-        #FIXME
-        if self.client.trace_id:
-            self.info('TraceID: {0}'.format(self.client.trace_id))
-        self.die('Server Error: {0}'.format(e.desc))
+        self.error('Server Error: {0}'.format(e.desc))
+        self.error('If the problem persists, please e-mail ' \
+            'support@dotcloud.com {0}' \
+            .format('and mention Trace ID "{0}"'.format(e.trace_id)
+                if e.trace_id else ''))
+        self.die()
 
     def cmd_check(self, args):
         # TODO Check ~/.dotcloud stuff
         try:
             self.info('Checking the authentication status')
             res = self.client.get('/me')
-            self.success('Client is authenticated as {0}'.format(res.item['username']))
+            self.success('Client is authenticated as ' \
+                '{c.bright}{username}{c.reset}' \
+                .format(username=res.item['username'], c=self.colors))
         except:
+            raise
             self.die('Authentication failed. Run `{cmd} setup` to redo the authentication'.format(cmd=self.cmd))
         self.get_keys()
 
@@ -216,19 +220,16 @@ class CLI(object):
         self.success('dotCloud authentication is complete! You are recommended to run `{cmd} check` now.'.format(cmd=self.cmd))
 
     def authorize_client(self, url, credential, username, password):
-        req = urllib2.Request(url)
-        user_pass = '{0}:{1}'.format(urllib2.quote(credential['key']), urllib2.quote(credential['secret']))
-        basic_auth = base64.b64encode(user_pass).strip()
-        req.add_header('Authorization', 'Basic {0}'.format(basic_auth))
         form = {
             'username': username,
             'password': password,
             'grant_type': 'password',
             'client_id': credential['key']
         }
-        req.add_data(urllib.urlencode(form))
-        res = urllib2.urlopen(req)
-        return json.load(res)
+        res = requests.post(url, data=form,
+            auth=(credential['key'], credential['secret']))
+        res.raise_for_status()
+        return json.loads(res.text)
 
     def get_keys(self):
         res = self.client.get('/me/private_keys')
@@ -294,7 +295,7 @@ class CLI(object):
             if e.code == 404:
                 self.die('The {0} "{1}" does not exist.'.format(what_destroy, to_destroy))
             else:
-                self.die('Destroying the {0} "{1}" failed: {1}'.format(what_destroy, to_destroy, e))
+                raise
         self.success('Destroyed.')
         if args.service is None:
             if self.config.get('application') == args.application:
@@ -372,22 +373,48 @@ class CLI(object):
 
     @app_local
     def cmd_scale(self, args):
-        instances = {}
+        def round_memory(value):
+            # Memory scaling has to be performed in increments of 32M
+            step = 32 * (1024 * 1024)
+            diff = value % step
+            # If the memory is not an exact increment of 32M, then
+            # round it to the closest value (either higher or lower)
+            if diff != 0:
+                if diff <= (step / 2) and value > step:
+                    value -= diff
+                else:
+                    value += step - diff
+            return value
+
         for svc in args.services:
-            name, value = svc.split('=', 2)
-            value = int(value)
-            instances[name] = value
-        for name, value in instances.items():
-            url = '/me/applications/{0}/services/{1}/instances' \
-                .format(args.application, name)
-            self.info('Changing instances of {0} to {1}'.format(name, value))
             try:
-                self.client.put(url, {'instances': value})
+                if svc.action == 'instances':
+                    url = '/me/applications/{0}/services/{1}/instances' \
+                        .format(args.application, svc.name)
+                    self.info('Changing instances of {0} to {1}'.format(
+                        svc.name, svc.original_value))
+                    self.client.put(url, {'instances': svc.value})
+                elif svc.action == 'memory':
+                    memory = round_memory(svc.value)
+                    self.info('Changing memory of {0} to {1}B'.format(
+                        svc.name, bytes2human(memory)))
+                    url = '/me/applications/{0}/services/{1}/memory' \
+                        .format(args.application, svc.name)
+                    self.client.put(url, {'memory': memory})
             except RESTAPIError, e:
-                if e.code == 400:
-                    self.die('Failed to scale "{0}" service: {1}'.format(name, e))
-                raise
-        self.deploy(args.application)
+                if e.code == requests.codes.bad_request:
+                    self.die('Failed to scale {0} of "{1}": {2}'.format(
+                        svc.action, svc.name, e))
+        # If we changed the number of instances of any service, then we need
+        # to trigger a deploy
+        for svc in args.services:
+            if svc.action == 'instances':
+                self.deploy(args.application)
+                break
+        self.success('Successfully scaled {0} to {1}'.format(args.application,
+            ' '.join(['{0}:{1}={2}'.format(svc.name, svc.action,
+                    svc.original_value)
+                    for svc in args.services])))
 
     @app_local
     def cmd_info(self, args):
@@ -431,18 +458,49 @@ class CLI(object):
 
     @app_local
     def cmd_url(self, args):
-        def cb(service, urls):
-            print '{0}: {1}'.format(service['name'], urls[0]['url'])
-        self.get_url(args.application, cb)
+        if args.service:
+            urls = self.get_url(args.application, args.service)
+            if urls:
+                print urls[-1]['url']
+        else:
+            for (service, urls) in self.get_url(args.application).items():
+                print '{0}: {1}'.format(service, urls[-1]['url'])
 
-    def get_url(self, application, cb, type='http'):
-        url = '/me/applications/{0}/services'.format(application)
-        res = self.client.get(url)
-        for service in res.items:
-            instance = service['instances'][0]
-            u = [p for p in instance.get('ports', []) if p['name'] == type]
-            if len(u) > 0:
-                cb(service, u)
+    @app_local
+    def cmd_open(self, args):
+        import webbrowser
+
+        if args.service:
+            urls = self.get_url(args.application, args.service)
+            if urls:
+                webbrowser.open(urls[-1]['url'])
+        else:
+            urls = self.get_url(args.application)
+            if not urls:
+                self.die('No URLs found for the application')
+            if len(urls) > 1:
+                self.die('More than one service exposes an URL. ' \
+                    'Please specify the name of the one you want to open: {0}' \
+                    .format(', '.join(urls.keys())))
+            webbrowser.open(urls.values()[0][-1]['url'])
+
+    def get_url(self, application, service=None, type='http'):
+        if service is None:
+            urls = {}
+            url = '/me/applications/{0}/services'.format(application)
+            res = self.client.get(url)
+            for service in res.items:
+                instance = service['instances'][0]
+                u = [p for p in instance.get('ports', []) if p['name'] == type]
+                if len(u) > 0:
+                    urls[service['name']] = u
+            return urls
+        else:
+            url = '/me/applications/{0}/services/{1}'.format(application,
+                service)
+            res = self.client.get(url)
+            instance = res.item['instances'][0]
+            return [p for p in instance.get('ports', []) if p['name'] == type]
 
     @app_local
     def cmd_deploy(self, args):
@@ -483,29 +541,42 @@ class CLI(object):
     def deploy(self, application, clean=False, revision=None):
         self.info('Deploying {0}'.format(application))
         url = '/me/applications/{0}/revision'.format(application)
-        self.client.put(url, {'revision': revision, 'clean': clean})
+        response = self.client.put(url, {'revision': revision, 'clean': clean})
+        deploy_trace_id = response.trace_id
         url = '/me/applications/{0}/build_logs'.format(application)
         while True:
-            res = self.client.get(url)
-            for item in res.items:
-                source = item.get('source', 'api')
-                if source == 'api':
-                    source = '-->'
-                else:
-                    source = '[{0}]'.format(source)
-                line = u'{0} {1} {2}'.format(
-                    self.iso_dtime_local(item['timestamp']).strftime('%H:%M:%S'),
-                    source,
-                    item['message'])
-                print line
-            next = res.find_link('next')
-            if not next:
-                break
-            url = next.get('href')
-            time.sleep(3)
-        def display_url(service, urls):
-            self.success('Application is live at {0}'.format(urls[0]['url']))
-        self.get_url(application, display_url)
+            try:
+                res = self.client.get(url)
+                for item in res.items:
+                    source = item.get('source', 'api')
+                    if source == 'api':
+                        source = '-->'
+                    else:
+                        source = '[{0}]'.format(source)
+                    line = u'{0} {1} {2}'.format(
+                        self.iso_dtime_local(item['timestamp']).strftime('%H:%M:%S'),
+                        source,
+                        item['message'])
+                    print line
+                next = res.find_link('next')
+                if not next:
+                    break
+                url = next.get('href')
+                time.sleep(3)
+            except KeyboardInterrupt:
+                self.error('You\'ve closed your log stream with Ctrl-C, ' \
+                    'but the deployment is still running in the background.')
+                self.error('If you aborted because of an error ' \
+                    '(e.g. the deployment got stuck), please e-mail ' \
+                    'support@dotcloud.com and mention Push ID "{0}"' \
+                    .format(deploy_trace_id))
+                self.die()
+        urls = self.get_url(application)
+        if urls:
+            self.success('Application is live at {c.bright}{url}{c.reset}' \
+                .format(url=urls.values()[-1][-1]['url'], c=self.colors))
+        else:
+            self.success('Application is live')
 
     @app_local
     def cmd_ssh(self, args):
