@@ -19,6 +19,7 @@ import getpass
 import requests
 import urllib2
 import datetime
+import calendar
 
 class CLI(object):
     __version__ = VERSION
@@ -660,7 +661,6 @@ class CLI(object):
         self.info('Service {0} will be restarted.'.format(args.service))
 
     def cmd_logs(self, args):
-        print args.logs
         cmd = 'cmd_logs_{0}'.format(args.logs)
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
@@ -668,8 +668,8 @@ class CLI(object):
 
     def iso_dtime_local(self, strdate):
         bt = time.strptime(strdate, "%Y-%m-%dT%H:%M:%S.%fZ")
-        ts = time.mktime(bt)
-        dt = datetime.datetime.utcfromtimestamp(ts)
+        ts = calendar.timegm(bt)
+        dt = datetime.datetime.fromtimestamp(ts)
         return dt
 
     def cmd_activity(self, args):
@@ -694,3 +694,73 @@ class CLI(object):
             elif category == 'alias':
                 print '{application}.{service}'.format(**activity),
                 print '(cname={alias})'.format(**activity)
+
+    def _logs_deploy_list(self, args):
+        deployments = self.client.get('/me/applications/{0}/logs/deployments'.format(
+            args.application))
+        print 'deployment date', ' ' * 3,
+        print 'revision', ' ' * 15, 'deploy_id [application {0}]'.format(args.application)
+        deploy_id = None
+        previous_deploy_id = None
+        for log in deployments.items:
+            previous_deploy_id = deploy_id
+            ts = self.iso_dtime_local(log['created_at'])
+            deploy_id = log['deploy_id']
+            print '{0} {1:24} {2}'.format(ts, log['revision'], deploy_id)
+
+        selfcmd = os.path.basename(sys.argv[0])
+        if previous_deploy_id:
+            print '-- <hint> display previous deployment\'s logs:'
+            print '{0} logs deploy -d {1}'.format(selfcmd, previous_deploy_id)
+        print '-- <hint> display latest deployment\'s logs:'
+        print '{0} logs deploy'.format(selfcmd)
+
+    def cmd_logs_deploy(self, args):
+        if args.list:
+            return self._logs_deploy_list(args)
+
+        filter_svc = None
+        filter_inst = None
+        if args.service:
+            parts = args.service.split('.')
+            filter_svc = parts[0]
+            if len(parts) > 1:
+                filter_inst = int(parts[1])
+
+        response = self.client.get('/me/applications/{0}/logs/deployments/{1}'.format(
+            args.application, args.d or 'latest'))
+        meta = response.items[0]['meta']
+        last_ts = None
+        for log in response.items[0]['logs']:
+            ts = self.iso_dtime_local(log['created_at'])
+            if last_ts is None or (last_ts.day != ts.day
+                    or last_ts.month != ts.month
+                    or last_ts.year != ts.year
+                    or last_ts.hour != ts.hour
+                    ):
+                print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
+                        meta['application'], meta['deploy_id'])
+            last_ts = ts
+
+            tags = ''
+            svc = log.get('service')
+            inst = log.get('instance')
+
+            if filter_svc:
+                if filter_svc != svc:
+                    continue
+                if filter_inst and inst and filter_inst != int(inst):
+                    continue
+
+            if svc:
+                if inst:
+                    tags = '[{0}.{1}] '.format(svc, inst)
+                else:
+                    tags = '[{0}] '.format(svc)
+            else:
+                tags = '--> '
+
+            line = '{0}: {1}{2}'.format(ts.time(), tags, log['message'])
+            if log['level'] == 'ERROR':
+                line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
+            print line
