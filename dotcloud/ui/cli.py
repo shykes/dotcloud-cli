@@ -68,7 +68,7 @@ class CLI(object):
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
         try:
-            getattr(self, cmd)(args)
+            return getattr(self, cmd)(args)
         except AuthenticationNotConfigured:
             self.error('CLI authentication is not configured. Run `{0} setup` now.'.format(self.cmd))
         except RESTAPIError, e:
@@ -508,6 +508,14 @@ class CLI(object):
         self.deploy(args.application, clean=args.clean, revision=args.revision)
 
     @app_local
+    def cmd_push_legacy(self, args):
+        url = '/me/applications/{0}/push-url'.format(args.application)
+        res = self.client.get(url)
+        push_url = res.item.get('url')
+        self.rsync_code(push_url)
+        self.deploy_legacy(args.application, clean=args.clean)
+
+    @app_local
     def cmd_push(self, args):
         url = '/me/applications/{0}/push-url'.format(args.application)
         res = self.client.get(url)
@@ -539,7 +547,7 @@ class CLI(object):
         except OSError:
             self.die('rsync failed')
 
-    def deploy(self, application, clean=False, revision=None):
+    def deploy_legacy(self, application, clean=False, revision=None):
         self.info('Deploying {0}'.format(application))
         url = '/me/applications/{0}/revision'.format(application)
         response = self.client.put(url, {'revision': revision, 'clean': clean})
@@ -572,6 +580,33 @@ class CLI(object):
                     'support@dotcloud.com and mention Push ID "{0}"' \
                     .format(deploy_trace_id))
                 self.die()
+        urls = self.get_url(application)
+        if urls:
+            self.success('Application is live at {c.bright}{url}{c.reset}' \
+                .format(url=urls.values()[-1][-1]['url'], c=self.colors))
+        else:
+            self.success('Application is live')
+
+    def deploy(self, application, clean=False, revision=None):
+        self.info('Deploying {0}'.format(application))
+        url = '/me/applications/{0}/revision'.format(application)
+        response = self.client.put(url, {'revision': revision, 'clean': clean})
+        deploy_trace_id = response.trace_id
+        deploy_id = response.item['deploy_id']
+
+        try:
+            return self._stream_logs(application, deploy_id, notail=True)
+        except KeyboardInterrupt:
+            self.error('You\'ve closed your log stream with Ctrl-C, ' \
+                'but the deployment is still running in the background.')
+            self.error('If you aborted because of an error ' \
+                '(e.g. the deployment got stuck), please e-mail ' \
+                'support@dotcloud.com and mention Push ID "{0}"' \
+                .format(deploy_trace_id))
+            self.error('If you want to continue following your deployment, ' \
+                    'try:\n{0} logs deploy -d {1}'.format(
+                        os.path.basename(sys.argv[0]), deploy_id))
+            self.die()
         urls = self.get_url(application)
         if urls:
             self.success('Application is live at {c.bright}{url}{c.reset}' \
@@ -664,7 +699,7 @@ class CLI(object):
         cmd = 'cmd_logs_{0}'.format(args.logs)
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
-        getattr(self, cmd)(args)
+        return getattr(self, cmd)(args)
 
     def iso_dtime_local(self, strdate):
         bt = time.strptime(strdate, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -715,23 +750,14 @@ class CLI(object):
         print '-- <hint> display latest deployment\'s logs:'
         print '{0} logs deploy'.format(selfcmd)
 
-    def cmd_logs_deploy(self, args):
-        if args.list:
-            return self._logs_deploy_list(args)
-
-        filter_svc = None
-        filter_inst = None
-        if args.service:
-            parts = args.service.split('.')
-            filter_svc = parts[0]
-            if len(parts) > 1:
-                filter_inst = int(parts[1])
-
-        response = self.client.get('/me/applications/{0}/logs/deployments/{1}'.format(
-            args.application, args.d or 'latest'))
-        meta = response.items[0]['meta']
+    def _stream_logs(self, app, did=None, filter_svc=None, filter_inst=None,
+            notail=False):
+        url = '/me/applications/{0}/logs/deployments/{1}?stream'.format(app,
+                did or 'latest')
+        response = self.client.get(url, streaming=True)
+        meta = response.item['meta']
         last_ts = None
-        for log in response.items[0]['logs']:
+        for log in response.items:
             ts = self.iso_dtime_local(log['created_at'])
             if last_ts is None or (last_ts.day != ts.day
                     or last_ts.month != ts.month
@@ -764,3 +790,25 @@ class CLI(object):
             if log['level'] == 'ERROR':
                 line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
             print line
+
+            status = log.get('status')
+            if status is not None:
+                if status == 'deploy_end':
+                    return 0
+                if status == 'deploy_fail':
+                    return 1
+
+    def cmd_logs_deploy(self, args):
+        if args.list:
+            return self._logs_deploy_list(args)
+
+        filter_svc = None
+        filter_inst = None
+        if args.service:
+            parts = args.service.split('.')
+            filter_svc = parts[0]
+            if len(parts) > 1:
+                filter_inst = int(parts[1])
+
+        return self._stream_logs(args.application, args.d, filter_svc,
+                filter_inst)

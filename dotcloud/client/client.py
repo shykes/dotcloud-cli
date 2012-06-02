@@ -47,8 +47,9 @@ class RESTClient(object):
         else:
             return path
 
-    def get(self, path):
-        return self.make_response(self.session.get(self.build_url(path)))
+    def get(self, path, streaming=False):
+        return self.make_response(self.session.get(self.build_url(path)),
+                streaming)
 
     def post(self, path, payload={}):
         return self.make_response(
@@ -69,10 +70,10 @@ class RESTClient(object):
         return self.make_response(
             self.session.patch(self.build_url(path), data=json.dumps(payload),
                 headers={'Content-Type': 'application/json'}))
-    def make_response(self, res):
+    def make_response(self, res, streaming=False):
         trace_id = res.headers.get('X-DotCloud-TraceID')
         if res.headers['Content-Type'] == 'application/json':
-            data = json.loads(res.text)
+            pass
         elif res.status_code == requests.codes.no_content:
             return BaseResponse.create(res=res, trace_id=trace_id)
         else:
@@ -83,6 +84,8 @@ class RESTClient(object):
                                     res.status_code),
                                trace_id=trace_id)
         if not res.ok:
+            data = json.loads(res.text)
             raise RESTAPIError(code=res.status_code,
                 desc=data['error']['description'], trace_id=trace_id)
-        return BaseResponse.create(res=res, data=data, trace_id=trace_id)
+        return BaseResponse.create(res=res, trace_id=trace_id,
+                streaming=streaming)

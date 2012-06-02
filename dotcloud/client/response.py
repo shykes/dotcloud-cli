@@ -1,11 +1,24 @@
+import json
+
 class BaseResponse(object):
     def __init__(self, obj=None):
         self.obj = obj
 
     @classmethod
-    def create(cls, res=None, data=None, trace_id=None):
+    def create(cls, res=None, trace_id=None, streaming=False):
         resp = None
-        if data and 'object' in data:
+
+        if streaming:
+            stream = res.iter_lines()
+            data = json.loads(next(stream))
+        else:
+            if len(res.text):
+                data = json.loads(res.text)
+            else:
+                data = None
+        if streaming:
+            resp = StreamResponse(obj=data['object'], stream=stream)
+        elif data and 'object' in data:
             resp = ItemResponse(obj=data['object'])
         elif data and 'objects' in data:
             resp = ListResponse(obj=data['objects'])
@@ -48,3 +61,19 @@ class NoItemResponse(BaseResponse):
     @property
     def item(self):
         return None
+
+class StreamResponse(BaseResponse):
+    def __init__(self, obj, stream):
+        BaseResponse.__init__(self, obj)
+        self._stream = stream
+
+    @property
+    def items(self):
+        def stream():
+            for line in self._stream:
+                yield json.loads(line)
+        return stream()
+
+    @property
+    def item(self):
+        return self.obj

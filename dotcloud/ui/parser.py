@@ -116,6 +116,10 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     push.add_argument('--clean', action='store_true', help='clean build')
 
+    push_legacy = subcmd.add_parser('push_legacy', help='Push the code (legacy way)',
+            parents=[common_parser])
+    push_legacy.add_argument('--clean', action='store_true', help='clean build')
+
     deploy = subcmd.add_parser('deploy', help='Deploy the code',
             parents=[common_parser])
     deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
