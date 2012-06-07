@@ -762,7 +762,6 @@ class CLI(object):
             if last_ts is None or (last_ts.day != ts.day
                     or last_ts.month != ts.month
                     or last_ts.year != ts.year
-                    or last_ts.hour != ts.hour
                     ):
                 print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
                         meta['application'], meta['deploy_id'])
