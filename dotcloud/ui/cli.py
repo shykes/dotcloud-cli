@@ -595,13 +595,14 @@ class CLI(object):
         deploy_id = response.item['deploy_id']
 
         try:
-            return self._stream_logs(application, deploy_id, notail=True)
+            return self._stream_logs(application, deploy_id, notail=True,
+                    deploy_trace_id=deploy_trace_id)
         except KeyboardInterrupt:
             self.error('You\'ve closed your log stream with Ctrl-C, ' \
                 'but the deployment is still running in the background.')
             self.error('If you aborted because of an error ' \
-                '(e.g. the deployment got stuck), please e-mail ' \
-                'support@dotcloud.com and mention Push ID "{0}"' \
+                '(e.g. the deployment got stuck), please e-mail\n' \
+                'support@dotcloud.com and mention this trace ID: {0}'
                 .format(deploy_trace_id))
             self.error('If you want to continue following your deployment, ' \
                     'try:\n{0} logs deploy -d {1}'.format(
@@ -751,7 +752,7 @@ class CLI(object):
         print '{0} logs deploy'.format(selfcmd)
 
     def _stream_logs(self, app, did=None, filter_svc=None, filter_inst=None,
-            notail=False):
+            notail=False, deploy_trace_id=None):
         url = '/me/applications/{0}/logs/deployments/{1}?stream'.format(app,
                 did or 'latest')
         response = self.client.get(url, streaming=True)
@@ -795,7 +796,18 @@ class CLI(object):
                 if status == 'deploy_end':
                     return 0
                 if status == 'deploy_fail':
-                    return 1
+                    return 2
+
+        self.error('The connection was lost, ' \
+                'but the deployment is still running in the background.')
+        if deploy_trace_id is not None:
+            self.error('If this message happen too often, please e-mail\n' \
+                    'support@dotcloud.com and mention this trace ID: {0}'
+                .format(deploy_trace_id))
+        self.error('if you want to continue following your deployment, ' \
+                'try:\n{0} logs deploy -d {1}'.format(
+                    os.path.basename(sys.argv[0]), did))
+        self.die()
 
     def cmd_logs_deploy(self, args):
         if args.list:
