@@ -521,7 +521,7 @@ class CLI(object):
         res = self.client.get(url)
         push_url = res.item.get('url')
         self.rsync_code(push_url)
-        self.deploy(args.application, clean=args.clean)
+        return self.deploy(args.application, clean=args.clean)
 
     def rsync_code(self, push_url, local_dir='.'):
         self.info('Syncing code from {0} to {1}'.format(local_dir, push_url))
