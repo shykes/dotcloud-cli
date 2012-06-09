@@ -597,8 +597,10 @@ class CLI(object):
         deploy_id = response.item['deploy_id']
 
         try:
-            return self._stream_logs(application, deploy_id, notail=True,
+            res = self._stream_logs(application, deploy_id, notail=True,
                     deploy_trace_id=deploy_trace_id)
+            if res != 0:
+                return res
         except KeyboardInterrupt:
             self.error('You\'ve closed your log stream with Ctrl-C, ' \
                 'but the deployment is still running in the background.')
