@@ -791,7 +791,12 @@ class CLI(object):
             line = '{0}: {1}{2}'.format(ts.time(), tags, log['message'])
             if log['level'] == 'ERROR':
                 line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
-            print line
+
+            if log.get('partial', False):
+                print line, '\r',
+                sys.stdout.flush()
+            else:
+                print line
 
             status = log.get('status')
             if status is not None:
