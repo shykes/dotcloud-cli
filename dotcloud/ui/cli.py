@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 from .parser import get_parser
 from .version import VERSION
 from .config import GlobalConfig, CLIENT_KEY, CLIENT_SECRET
