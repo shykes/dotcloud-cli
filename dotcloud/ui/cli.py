@@ -22,6 +22,7 @@ import requests
 import urllib2
 import datetime
 import calendar
+import urlparse
 
 class CLI(object):
     __version__ = VERSION
@@ -90,7 +91,7 @@ class CLI(object):
     def app_local(func):
         def wrapped(self, args):
             self.ensure_app_local(args)
-            func(self, args)
+            return func(self, args)
         return wrapped
 
     def save_config(self, config):
@@ -528,7 +529,7 @@ class CLI(object):
     def rsync_code(self, push_url, local_dir='.'):
         self.info('Syncing code from {0} to {1}'.format(local_dir, push_url))
         url = self.parse_url(push_url)
-        ssh = ' '.join(self.common_ssh_options)
+        ssh = ' '.join(self.common_ssh_options + ['-o', 'LogLevel=QUIET'])
         ssh += ' -p {0}'.format(url['port'])
         excludes = ('*.pyc', '.git', '.hg')
         if not local_dir.endswith('/'):
@@ -619,68 +620,92 @@ class CLI(object):
         else:
             self.success('Application is live')
 
-    @app_local
-    def cmd_ssh(self, args):
-        instance = 0
-        if '.' in args.service:
-            svc, instance = args.service.split('.', 2)
-        else:
-            svc = args.service
-        try:
-            instance = int(instance)
-        except ValueError:
-            self.die('usage: {0} ssh service[.N]'.format(self.cmd),
-                stderr=True)
-        url = '/me/applications/{0}/services/{1}'.format(args.application, svc)
-        res = self.client.get(url)
-        for service in res.items:
-            try:
-                ports = service['instances'][instance].get('ports', [])
-                u = [p for p in ports if p['name'] == 'ssh']
-                if len(u) > 0:
-                    self.run_ssh(u[instance]['url'], '$SHELL').wait()
-            except IndexError:
-                self.die('Not Found: Service instance {0}.{1} does not exist'.format(svc, instance))
-
-    @app_local
-    def cmd_run(self, args):
-        # TODO refactor with cmd_ssh
-        url = '/me/applications/{0}/services/{1}'.format(args.application,
-            args.service)
-        res = self.client.get(url)
-        for service in res.items:
-            ports = service['instances'][0].get('ports', [])
-            u = [p for p in ports if p['name'] == 'ssh']
-            if len(u) > 0:
-                self.run_ssh(u[0]['url'], ' '.join(args.command)).wait()
-
     @property
     def common_ssh_options(self):
-        return (
+        return [
             'ssh', '-t',
             '-i', self.global_config.key,
-            '-o', 'LogLevel=QUIET',
-            '-o', 'UserKnownHostsFile=/dev/null',
             '-o', 'StrictHostKeyChecking=no',
             '-o', 'PasswordAuthentication=no',
-            '-o', 'ServerAliveInterval=10'
-        )
+            '-o', 'ServerAliveInterval=10',
+        ]
 
     def _escape(self, s):
         for c in ('`', '$', '"'):
             s = s.replace(c, '\\' + c)
         return s
 
-    def run_ssh(self, url, cmd, **kwargs):
-        self.info('Connecting to {0}'.format(url))
-        res = self.parse_url(url)
-        options = self.common_ssh_options + (
-            '-l', res.get('user', 'dotcloud'),
-            '-p', res.get('port'),
-            res.get('host'),
-            'bash -l -c "{0}"'.format(self._escape(cmd))
-        )
-        return subprocess.Popen(options, **kwargs)
+    def get_ssh_endpoint(self, args):
+        if '.' in args.service_or_instance:
+            service_name, instance_id = args.service_or_instance.split('.', 2)
+            try:
+                instance_id = int(instance_id)
+                if instance_id < 0:
+                    raise ValueError('negative value')
+            except ValueError:
+                self.die('usage: {0} ssh service[.instance_id]'.format(self.cmd),
+                    stderr=True)
+        else:
+            service_name = args.service_or_instance
+            instance_id = 0
+
+        url = '/me/applications/{0}/services/{1}'.format(args.application,
+                service_name)
+        service = self.client.get(url).item
+
+        try:
+            instances = sorted(service['instances'], key=lambda i: i['container_id'])
+            instance = instances[instance_id]
+        except IndexError:
+            self.die('Not Found: Service ({0}) instance #{1} does not exist'.format(
+                service['name'], instance_id))
+
+        try:
+            ssh_endpoint = filter(lambda p: p['name'] == 'ssh',
+                    instance.get('ports', []))[0]['url']
+        except (IndexError, KeyError):
+            self.die('No ssh endpoint for service ({0}) instance #{1}'.format(
+                service['name'], instance_id))
+
+        url = urlparse.urlparse(ssh_endpoint)
+        if None in [url.hostname, url.port]:
+            self.die('Invalid ssh endpoint "{0}" ' \
+                    'for service ({1}) instance #{2}'.format(
+                        ssh_endpoint, service['name'], instance_id))
+
+        return dict(service=service['name'],
+                instance=instance_id, host=url.hostname, port=url.port,
+                user=url.username if url.username else 'dotcloud',
+                )
+
+    def spawn_ssh(self, ssh_endpoint, cmd_args=None):
+        ssh_args = self.common_ssh_options + [
+            '-o', 'UserKnownHostsFile=/dev/null',
+            '-o', 'LogLevel=ERROR',
+            '-l', ssh_endpoint['user'],
+            '-p', str(ssh_endpoint['port']),
+            ssh_endpoint['host']
+        ]
+        if cmd_args:
+            ssh_args.append('--')
+            ssh_args.extend(cmd_args)
+        return subprocess.Popen(ssh_args)
+
+    @app_local
+    def cmd_sh(self, args):
+        ssh_endpoint = self.get_ssh_endpoint(args)
+        self.info('Opening a shell on service ({0}) instance #{1}'.format(
+                ssh_endpoint['service'], ssh_endpoint['instance']))
+        return self.spawn_ssh(ssh_endpoint).wait()
+
+    @app_local
+    def cmd_run(self, args):
+        cmd_args = [args.command] + args.args
+        ssh_endpoint = self.get_ssh_endpoint(args)
+        self.info('Executing "{0}" on service ({1}) instance #{2}'.format(
+            ' '.join(cmd_args), ssh_endpoint['service'],
+            ssh_endpoint['instance']))
+        return self.spawn_ssh(ssh_endpoint, cmd_args).wait()
 
     def parse_url(self, url):
         m = re.match('^(?P<scheme>[^:]+)://((?P<user>[^@]+)@)?(?P<host>[^:/]+)(:(?P<port>\d+))?(?P<path>/.*)?$', url)

@@ -103,14 +103,26 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     open_.add_argument('service', nargs='?', help='Specify the service')
 
-    ssh = subcmd.add_parser('ssh', help='SSH into the service',
+    shell = subcmd.add_parser('sh',
+            help='Open a shell inside a service instance',
             parents=[common_parser])
-    ssh.add_argument('service', help='Specify the service')
+    shell.add_argument('service_or_instance',
+            help='Open a shell inside the first instance of a ' \
+                    'given service (ex: www) ' \
+                    'or a specific one (ex: www.1)')
 
-    run = subcmd.add_parser('run', help='Run a command inside the service',
+    run = subcmd.add_parser('run',
+            help='Run a command inside a service instance',
             parents=[common_parser])
-    run.add_argument('service', help='Specify the service')
-    run.add_argument('command', nargs='+', help='The command to execute')
+    run.add_argument('service_or_instance',
+            help='Run the command on the first instance of a ' \
+                    'given service (ex: www) ' \
+                    'or a specific one (ex: www.1)')
+
+    run.add_argument('command',
+            help='The command to execute on the service\'s instance')
+    run.add_argument('args', nargs=argparse.REMAINDER, metavar='...',
+            help='Optional command\'s arguments')
 
     push = subcmd.add_parser('push', help='Push the code',
             parents=[common_parser])
