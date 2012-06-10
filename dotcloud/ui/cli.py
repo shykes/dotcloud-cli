@@ -598,8 +598,8 @@ class CLI(object):
         deploy_id = response.item['deploy_id']
 
         try:
-            res = self._stream_logs(application, deploy_id, notail=True,
-                    deploy_trace_id=deploy_trace_id)
+            res = self._stream_deploy_logs(application, deploy_id,
+                    deploy_trace_id=deploy_trace_id, follow=True)
             if res != 0:
                 return res
         except KeyboardInterrupt:
@@ -780,22 +780,24 @@ class CLI(object):
         print '-- <hint> display latest deployment\'s logs:'
         print '{0} logs deploy'.format(selfcmd)
 
-    def _stream_logs(self, app, did=None, filter_svc=None, filter_inst=None,
-            notail=False, deploy_trace_id=None):
-        url = '/me/applications/{0}/logs/deployments/{1}?stream'.format(app,
-                did or 'latest')
+    def _stream_formated_logs(self, url, filter_svc=None, filter_inst=None):
         response = self.client.get(url, streaming=True)
         meta = response.item['meta']
         last_ts = None
         for log in response.items:
-            ts = self.iso_dtime_local(log['created_at'])
-            if last_ts is None or (last_ts.day != ts.day
-                    or last_ts.month != ts.month
-                    or last_ts.year != ts.year
-                    ):
-                print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
-                        meta['application'], meta['deploy_id'])
-            last_ts = ts
+            raw_ts = log.get('created_at')
+            if raw_ts is not None:
+                ts = self.iso_dtime_local(log['created_at'])
+                if last_ts is None or (last_ts.day != ts.day
+                        or last_ts.month != ts.month
+                        or last_ts.year != ts.year
+                        ):
+                    print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
+                            meta['application'], meta['deploy_id'])
+                last_ts = ts
+                line = '{0}: '.format(ts.time())
+            else:
+                line = ''
 
             tags = ''
             svc = log.get('service')
@@ -804,26 +806,40 @@ class CLI(object):
             if filter_svc:
                 if filter_svc != svc:
                     continue
-                if filter_inst and inst and filter_inst != int(inst):
+                if (filter_inst is not None and inst is not None
+                        and filter_inst != int(inst)):
                     continue
 
-            if svc:
-                if inst:
+            if svc is not None:
+                if inst is not None:
                     tags = '[{0}.{1}] '.format(svc, inst)
                 else:
                     tags = '[{0}] '.format(svc)
             else:
                 tags = '--> '
 
-            line = '{0}: {1}{2}'.format(ts.time(), tags, log['message'])
-            if log['level'] == 'ERROR':
+            line += '{0}{1}'.format(tags, log['message'])
+            if log.get('level') == 'ERROR':
                 line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
 
+            yield log, line
+
+    def _stream_deploy_logs(self, app, did=None, filter_svc=None,
+            filter_inst=None, deploy_trace_id=None, follow=False):
+        url = '/me/applications/{0}/logs/deployments/{1}?stream'.format(app,
+                did or 'latest')
+
+        if follow:
+            url += '&follow'
+
+        for log, formated_line, in self._stream_formated_logs(url, filter_svc,
+                filter_inst):
+
             if log.get('partial', False):
-                print line, '\r',
+                print formated_line, '\r',
                 sys.stdout.flush()
             else:
-                print line
+                print formated_line
 
             status = log.get('status')
             if status is not None:
@@ -831,6 +847,9 @@ class CLI(object):
                     return 0
                 if status == 'deploy_fail':
                     return 2
+
+        if not follow:
+            return 0
 
         self.error('The connection was lost, ' \
                 'but the deployment is still running in the background.')
@@ -855,5 +874,32 @@ class CLI(object):
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
-        return self._stream_logs(args.application, args.d, filter_svc,
-                filter_inst)
+        return self._stream_deploy_logs(args.application, did=args.d,
+                filter_svc=filter_svc, filter_inst=filter_inst,
+                follow=not filter_svc)
+
+    def cmd_logs_app(self, args):
+        filter_svc = None
+        filter_inst = None
+        if args.service:
+            parts = args.service.split('.')
+            filter_svc = parts[0]
+            if len(parts) > 1:
+                filter_inst = int(parts[1])
+
+        url = '/me/applications/{0}/logs/application?stream&follow'.format(
+                args.application)
+
+        if filter_svc is not None:
+            url += '&service={0}'.format(filter_svc)
+            if filter_inst is not None:
+                url += '&instance={0}'.format(filter_inst)
+
+        for log, formated_line, in self._stream_formated_logs(url, filter_svc,
+                filter_inst):
+
+            if log.get('partial', False):
+                print formated_line, '\r',
+                sys.stdout.flush()
+            else:
+                print formated_line
