@@ -22,7 +22,6 @@ import requests
 import urllib2
 import datetime
 import calendar
-import urlparse
 
 class CLI(object):
     __version__ = VERSION
@@ -660,15 +659,15 @@ class CLI(object):
             self.die('No ssh endpoint for service ({0}) instance #{1}'.format(
                 service['name'], instance_id))
 
-        url = urlparse.urlparse(ssh_endpoint)
-        if None in [url.hostname, url.port]:
+        url = self.parse_url(ssh_endpoint)
+        if None in [url['host'], url['port']]:
             self.die('Invalid ssh endpoint "{0}" ' \
                     'for service ({1}) instance #{2}'.format(
                         ssh_endpoint, service['name'], instance_id))
 
         return dict(service=service['name'],
-                instance=instance_id, host=url.hostname, port=url.port,
-                user=url.username if url.username else 'dotcloud',
+                instance=instance_id, host=url['host'], port=url['port'],
+                user=url.get('user', 'dotcloud'),
                 )
 
     def spawn_ssh(self, ssh_endpoint, cmd_args=None):
