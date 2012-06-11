@@ -379,16 +379,9 @@ class CLI(object):
     def cmd_scale(self, args):
         def round_memory(value):
             # Memory scaling has to be performed in increments of 32M
+            # Let's align max(step, value) to closest upper or lower step boundary.
             step = 32 * (1024 * 1024)
-            diff = value % step
-            # If the memory is not an exact increment of 32M, then
-            # round it to the closest value (either higher or lower)
-            if diff != 0:
-                if diff <= (step / 2) and value > step:
-                    value -= diff
-                else:
-                    value += step - diff
-            return value
+            return ((max(step, value) & ~(step / 2 - 1)) + step - 1) & ~(step - 1)
 
         for svc in args.services:
             try:
@@ -405,16 +398,16 @@ class CLI(object):
                     url = '/me/applications/{0}/services/{1}/memory' \
                         .format(args.application, svc.name)
                     self.client.put(url, {'memory': memory})
-            except RESTAPIError, e:
+            except RESTAPIError as e:
                 if e.code == requests.codes.bad_request:
                     self.die('Failed to scale {0} of "{1}": {2}'.format(
                         svc.action, svc.name, e))
+                raise
+
         # If we changed the number of instances of any service, then we need
         # to trigger a deploy
-        for svc in args.services:
-            if svc.action == 'instances':
-                self.deploy(args.application)
-                break
+        if any(svc.action == 'instances' for svc in args.services):
+            self.deploy(args.application)
         self.success('Successfully scaled {0} to {1}'.format(args.application,
             ' '.join(['{0}:{1}={2}'.format(svc.name, svc.action,
                     svc.original_value)

@@ -47,7 +47,7 @@ class ScaleOperation(object):
             else:
                 try:
                     self.value = human2bytes(v)
-                except Exception as e:
+                except Exception:
                     raise argparse.ArgumentTypeError('Invalid value for "{0}"' \
                         .format(kv))
 
