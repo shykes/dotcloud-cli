@@ -684,19 +684,17 @@ class CLI(object):
         return subprocess.Popen(ssh_args)
 
     @app_local
-    def cmd_sh(self, args):
-        ssh_endpoint = self.get_ssh_endpoint(args)
-        self.info('Opening a shell on service ({0}) instance #{1}'.format(
-                ssh_endpoint['service'], ssh_endpoint['instance']))
-        return self.spawn_ssh(ssh_endpoint).wait()
-
-    @app_local
     def cmd_run(self, args):
-        cmd_args = [args.command] + args.args
         ssh_endpoint = self.get_ssh_endpoint(args)
-        self.info('Executing "{0}" on service ({1}) instance #{2}'.format(
-            ' '.join(cmd_args), ssh_endpoint['service'],
-            ssh_endpoint['instance']))
+        if args.command:
+            cmd_args = [args.command] + args.args
+            self.info('Executing "{0}" on service ({1}) instance #{2}'.format(
+                ' '.join(cmd_args), ssh_endpoint['service'],
+                ssh_endpoint['instance']))
+        else:
+            cmd_args = None
+            self.info('Opening a shell on service ({0}) instance #{1}'.format(
+                    ssh_endpoint['service'], ssh_endpoint['instance']))
         return self.spawn_ssh(ssh_endpoint, cmd_args).wait()
 
     def parse_url(self, url):
