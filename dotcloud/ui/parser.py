@@ -153,27 +153,27 @@ def get_parser(name='dotcloud'):
             help='Which recorded deployment to look at (discoverable with --list).'
             ' When not specified, use the latest one.')
 
-    logs_deploy.add_argument('--build', action='store_true',
-            help='Retrieve only build logs.')
-    logs_deploy.add_argument('--install', action='store_true',
-            help='Retrieve only install logs.')
+#    logs_deploy.add_argument('--build', action='store_true',
+#            help='Retrieve only build logs.')
+#    logs_deploy.add_argument('--install', action='store_true',
+#            help='Retrieve only install logs.')
 
-    logs_deploy.add_argument('--no-follow', '-n', action='store_true',
+    logs_deploy.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
-    logs_deploy.add_argument('--tail', '-t', type=int, metavar='N',
-            help='Tail only N logs before following real-time logs')
-    logs_deploy.add_argument('--head', '-H', type=int, metavar='N',
-            help='Display the first N logs.'
-            ' Wait after real-time logs if needed.'
-            ' If --no-follow, display up to N recorded logs')
+    logs_deploy.add_argument('--lines', '-n', type=int, metavar='N',
+            help='Tail only N logs (before following real-time logs by default)')
+#    logs_deploy.add_argument('--head', '-H', type=int, metavar='N',
+#            help='Display the first N logs.'
+#            ' Wait after real-time logs if needed.'
+#            ' If --no-follow, display up to N recorded logs')
 
-    logs_deploy.add_argument('--from', metavar='DATE',
-            help='Start from DATE. DATE Can be XXX define format XXX'
-            ' or a negative value from now (ex: -1h)')
-    logs_deploy.add_argument('--to', metavar='DATE',
-            help='End at DATE. Same format as --from.'
-            ' If --no-follow, display up to DATE'
-            )
+#    logs_deploy.add_argument('--from', metavar='DATE',
+#            help='Start from DATE. DATE Can be XXX define format XXX'
+#            ' or a negative value from now (ex: -1h)')
+#    logs_deploy.add_argument('--to', metavar='DATE',
+#            help='End at DATE. Same format as --from.'
+#            ' If --no-follow, display up to DATE'
+#            )
 
     logs_app = logs.add_parser('app', help='Watch your application in live',
             parents=[common_parser])
@@ -183,6 +183,12 @@ def get_parser(name='dotcloud'):
             help='Filter logs upon a given service (ex: www).')
     service_or_instance.add_argument('instance', nargs='?',
             help='Filter logs upon a given service instance (ex: www.0).')
+
+    logs_app.add_argument('--no-follow', '-N', action='store_true',
+            help='Do not follow real-time logs')
+    logs_app.add_argument('--lines', '-n', type=int, metavar='N',
+            help='Tail only N logs (before following real-time logs by default)')
+
 
     def validate_var(kv):
         if kv.count('=') != 1:

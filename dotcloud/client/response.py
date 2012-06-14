@@ -10,7 +10,8 @@ class BaseResponse(object):
 
         if streaming:
             stream = res.iter_lines()
-            data = json.loads(next(stream))
+            first_line = next(stream)
+            data = json.loads(first_line)
         else:
             if len(res.text):
                 data = json.loads(res.text)
@@ -71,7 +72,7 @@ class StreamResponse(BaseResponse):
     def items(self):
         def stream():
             for line in self._stream:
-                yield json.loads(line)
+                yield json.loads(line)['object']
         return stream()
 
     @property

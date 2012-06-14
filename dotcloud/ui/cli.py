@@ -772,7 +772,7 @@ class CLI(object):
 
     def _stream_formated_logs(self, url, filter_svc=None, filter_inst=None):
         response = self.client.get(url, streaming=True)
-        meta = response.item['meta']
+        meta = response.item
         last_ts = None
         for log in response.items:
             raw_ts = log.get('created_at')
@@ -815,12 +815,15 @@ class CLI(object):
             yield log, line
 
     def _stream_deploy_logs(self, app, did=None, filter_svc=None,
-            filter_inst=None, deploy_trace_id=None, follow=False):
+            filter_inst=None, deploy_trace_id=None, follow=False, lines=None):
         url = '/me/applications/{0}/logs/deployments/{1}?stream'.format(app,
                 did or 'latest')
 
         if follow:
             url += '&follow'
+
+        if lines is not None:
+            url += '&lines={0}'.format(lines)
 
         for log, formated_line, in self._stream_formated_logs(url, filter_svc,
                 filter_inst):
@@ -864,9 +867,10 @@ class CLI(object):
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
+        follow = not args.no_follow if filter_svc is None else False
         return self._stream_deploy_logs(args.application, did=args.d,
                 filter_svc=filter_svc, filter_inst=filter_inst,
-                follow=not filter_svc)
+                follow=follow, lines=args.lines)
 
     def cmd_logs_app(self, args):
         filter_svc = None
@@ -877,8 +881,14 @@ class CLI(object):
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
-        url = '/me/applications/{0}/logs/application?stream&follow'.format(
+        url = '/me/applications/{0}/logs/application?stream'.format(
                 args.application)
+
+        if not args.no_follow:
+            url += '&follow'
+
+        if args.lines is not None:
+            url += '&lines={0}'.format(args.lines)
 
         if filter_svc is not None:
             url += '&service={0}'.format(filter_svc)
