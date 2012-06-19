@@ -34,6 +34,7 @@ class CLI(object):
             401: self.error_authen,
             403: self.error_authz,
             404: self.error_not_found,
+            422: self.error_unprocessable,
             500: self.error_server,
         }
         self.global_config = GlobalConfig()
@@ -179,6 +180,9 @@ class CLI(object):
 
     def error_not_found(self, e):
         self.die("Not Found: {0}".format(e.desc))
+
+    def error_unprocessable(self, e):
+        self.die(e.desc)
 
     def error_server(self, e):
         self.error('Server Error: {0}'.format(e.desc))
@@ -336,7 +340,7 @@ class CLI(object):
                 for alias in res.items:
                     print '{0}: {1}'.format(svc.get('name'), alias.get('alias'))
         elif args.subcmd == 'add':
-            url = '/me/applications/{0}/services/{2}/aliases' \
+            url = '/me/applications/{0}/services/{1}/aliases' \
                 .format(args.application, args.service)
             res = self.client.post(url, {'alias': args.alias})
             self.success('Alias "{0}" created for "{1}"'.format(
