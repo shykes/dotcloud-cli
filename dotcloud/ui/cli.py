@@ -51,12 +51,16 @@ class CLI(object):
                                                    client_id=CLIENT_KEY,
                                                    client_secret=CLIENT_SECRET,
                                                    token_url=token['url'])
-            self.client.authenticator.refresh_callback = lambda res: self.refresh_token(res)
+            self.client.authenticator.pre_refresh_callback = self.pre_refresh_token
+            self.client.authenticator.post_refresh_callback = self.post_refresh_token
         elif self.global_config.get('apikey'):
             access_key, secret = self.global_config.get('apikey').split(':')
             self.client.authenticator = BasicAuth(access_key, secret)
 
-    def refresh_token(self, res):
+    def pre_refresh_token(self, req):
+        self.info('Refreshing OAuth2 token...')
+
+    def post_refresh_token(self, res):
         self.info('Refreshed OAuth2 token')
         self.global_config.data['token']['access_token'] = res['access_token']
         self.global_config.data['token']['refresh_token'] = res['refresh_token']

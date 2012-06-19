@@ -26,20 +26,22 @@ class RESTClient(object):
             verify=True)
 
     def _pre_request_hook(self, request):
-        self.authenticator.pre_request_hook(request)
+        r = self.authenticator.pre_request_hook(request)
         if self.debug:
             print >>sys.stderr, '### {method} {url} data={data}'.format(
                 method  = request.method,
                 url     = request.path_url,
                 data    = request.data
             )
+        return r
 
     def _response_hook(self, response):
-        self.authenticator.response_hook(response)
+        r = self.authenticator.response_hook(response)
         if self.debug:
             print >>sys.stderr, '### {code} TraceID:{trace_id}'.format(
                 code=response.status_code,
                 trace_id=response.headers['X-DotCloud-TraceID'])
+        return r
 
     def build_url(self, path):
         if path.startswith('/'):

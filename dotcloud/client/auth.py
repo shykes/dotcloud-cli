@@ -45,9 +45,10 @@ class OAuth2Auth(BaseAuth):
         if response.status_code == requests.codes.unauthorized:
             if self._retry_count >= 1:
                 return
-            self._retry_count = self._retry_count + 1
+            self._retry_count += 1
             if self.refresh_credentials():
                 response.request.send(anyway=True)
+                return response.request.response  # override response
 
     def refresh_credentials(self):
         data = {
@@ -57,6 +58,8 @@ class OAuth2Auth(BaseAuth):
             'client_secret': self.client_secret,
             'scope': self.scope or ''
         }
+        if hasattr(self, 'pre_refresh_callback'):
+            self.pre_refresh_callback(data)
         res = requests.post(self.token_url, data=data)
         res.raise_for_status()
         if not res.ok:
@@ -65,6 +68,6 @@ class OAuth2Auth(BaseAuth):
         if data.get('access_token'):
             self.access_token = data['access_token']
             self.refresh_token = data['refresh_token']
-            if hasattr(self, 'refresh_callback'):
-                return self.refresh_callback(data)
+            if hasattr(self, 'post_refresh_callback'):
+                return self.post_refresh_callback(data)
         return False
