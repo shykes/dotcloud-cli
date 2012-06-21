@@ -220,9 +220,12 @@ def get_parser(name='dotcloud'):
                        help='Scaling action to perform e.g. www:instances=2 or www:memory=1gb',
                        type=ScaleOperation)
 
-    restart = subcmd.add_parser('restart', help='Restart the service',
+    restart = subcmd.add_parser('restart',
+            help='Restart a service\'s instance',
             parents=[common_parser])
-    restart.add_argument('service', help='Specify the service')
+    restart.add_argument('service_or_instance',
+            help='Restart the first instance of a ' \
+                    'given service (ex: www) or a specific one (ex: www.1)')
 
     alias = subcmd.add_parser('alias', help='Manage aliases for the service',
             parents=[common_parser]).add_subparsers(dest='subcmd')

@@ -635,19 +635,23 @@ class CLI(object):
             s = s.replace(c, '\\' + c)
         return s
 
-    def get_ssh_endpoint(self, args):
+    def parse_service_instance(self, args):
         if '.' in args.service_or_instance:
             service_name, instance_id = args.service_or_instance.split('.', 2)
             try:
                 instance_id = int(instance_id)
                 if instance_id < 0:
-                    raise ValueError('negative value')
-            except ValueError:
-                self.die('usage: {0} ssh service[.instance_id]'.format(self.cmd),
-                    stderr=True)
+                    raise ValueError('value should be >= 0')
+            except ValueError as e:
+                self.die('Unable to parse instance number: {0}'.format(e))
+
         else:
             service_name = args.service_or_instance
             instance_id = 0
+        return service_name, instance_id
+
+    def get_ssh_endpoint(self, args):
+        service_name, instance_id = self.parse_service_instance(args)
 
         url = '/me/applications/{0}/services/{1}'.format(args.application,
                 service_name)
@@ -714,14 +718,19 @@ class CLI(object):
 
     @app_local
     def cmd_restart(self, args):
-        url = '/me/applications/{0}/services/{1}/reboots' \
-            .format(args.application, args.service)
+        service_name, instance_id = self.parse_service_instance(args)
+
+        url = '/me/applications/{0}/services/{1}/restart?instance={2}' \
+            .format(args.application, service_name, instance_id)
         try:
             self.client.post(url)
         except RESTAPIError as e:
             if e.code == 404:
-                self.die('Service {0} not found'.format(args.service))
-        self.info('Service {0} will be restarted.'.format(args.service))
+                self.die('Service ({0}) instance #{1} not found'.format(
+                    service_name, instance_id))
+            raise
+        self.info('Service ({0}) instance #{1} is being restarted.'.format(
+            service_name, instance_id))
 
     def cmd_logs(self, args):
         cmd = 'cmd_logs_{0}'.format(args.logs)
