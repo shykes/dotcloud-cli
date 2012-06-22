@@ -29,14 +29,15 @@ class ScaleOperation(object):
                     'Action must be either "instances" or "memory"' \
                     .format(self.action))
 
-        self.original_value = v
         if self.action == 'instances':
             try:
+                self.original_value = int(v)
                 self.value = int(v)
             except ValueError:
                 raise argparse.ArgumentTypeError('Invalid value for "{0}": ' \
                         'Instance count must be a number'.format(kv))
         elif self.action == 'memory':
+            self.original_value = v
             # Perform sone sanitization of the memory value
             v = v.upper()
             # Strip the trailing B as human2bytes doesn't handle those
@@ -119,10 +120,6 @@ def get_parser(name='dotcloud'):
     push = subcmd.add_parser('push', help='Push the code',
             parents=[common_parser])
     push.add_argument('--clean', action='store_true', help='clean build')
-
-    push_legacy = subcmd.add_parser('push_legacy', help='Push the code (legacy way)',
-            parents=[common_parser])
-    push_legacy.add_argument('--clean', action='store_true', help='clean build')
 
     deploy = subcmd.add_parser('deploy', help='Deploy the code',
             parents=[common_parser])

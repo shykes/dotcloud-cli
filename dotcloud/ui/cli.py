@@ -361,10 +361,13 @@ class CLI(object):
         url = '/me/applications/{0}/variables'.format(args.application)
         deploy = None
         if args.subcmd == 'list':
+            self.info('Variables for application {0}'.format(args.application))
             var = self.client.get(url).item
             for name in sorted(var.keys()):
                 print '='.join((name, var.get(name)))
         elif args.subcmd == 'set':
+            self.info('Setting {0} (application {1})'.format(
+                ', '.join(args.values), args.application))
             patch = {}
             for pair in args.values:
                 key, val = pair.split('=')
@@ -372,6 +375,8 @@ class CLI(object):
             self.client.patch(url, patch)
             deploy = True
         elif args.subcmd == 'unset':
+            self.info('Un-setting {0} (application {1})'.format(
+                ', '.join(args.variables), args.application))
             patch = {}
             for name in args.variables:
                 patch[name] = None
@@ -384,6 +389,7 @@ class CLI(object):
 
     @app_local
     def cmd_scale(self, args):
+        self.info('Scaling application {0}'.format(args.application))
         def round_memory(value):
             # Memory scaling has to be performed in increments of 32M
             # Let's align max(step, value) to closest upper or lower step boundary.
@@ -411,17 +417,22 @@ class CLI(object):
                         svc.action, svc.name, e))
                 raise
 
+        ret = 0
         # If we changed the number of instances of any service, then we need
         # to trigger a deploy
         if any(svc.action == 'instances' for svc in args.services):
-            self.deploy(args.application)
-        self.success('Successfully scaled {0} to {1}'.format(args.application,
-            ' '.join(['{0}:{1}={2}'.format(svc.name, svc.action,
+            ret = self.deploy(args.application)
+            print 'ret', ret
+
+        if ret == 0:
+            self.success('Successfully scaled {0} to {1}'.format(args.application,
+                ' '.join(['{0}:{1}={2}'.format(svc.name, svc.action,
                     svc.original_value)
                     for svc in args.services])))
 
     @app_local
     def cmd_info(self, args):
+        self.info('Application {0}'.format(args.application))
         try:
             url = '/me/applications/{0}/services'.format(args.application)
             res = self.client.get(url)
@@ -511,23 +522,16 @@ class CLI(object):
         self.deploy(args.application, clean=args.clean, revision=args.revision)
 
     @app_local
-    def cmd_push_legacy(self, args):
-        url = '/me/applications/{0}/push-url'.format(args.application)
-        res = self.client.get(url)
-        push_url = res.item.get('url')
-        self.rsync_code(push_url)
-        self.deploy_legacy(args.application, clean=args.clean)
-
-    @app_local
     def cmd_push(self, args):
         url = '/me/applications/{0}/push-url'.format(args.application)
         res = self.client.get(url)
         push_url = res.item.get('url')
-        self.rsync_code(push_url)
+        self.rsync_code(args, push_url)
         return self.deploy(args.application, clean=args.clean)
 
-    def rsync_code(self, push_url, local_dir='.'):
-        self.info('Syncing code from {0} to {1}'.format(local_dir, push_url))
+    def rsync_code(self, args, push_url, local_dir='.'):
+        self.info('Syncing code from "{0}" to application {1}'.format(local_dir,
+            args.application))
         url = self.parse_url(push_url)
         ssh = ' '.join(self.common_ssh_options + ['-o', 'LogLevel=QUIET'])
         ssh += ' -p {0}'.format(url['port'])
@@ -549,46 +553,6 @@ class CLI(object):
             return ret
         except OSError:
             self.die('rsync failed')
-
-    def deploy_legacy(self, application, clean=False, revision=None):
-        self.info('Deploying {0}'.format(application))
-        url = '/me/applications/{0}/revision'.format(application)
-        response = self.client.put(url, {'revision': revision, 'clean': clean})
-        deploy_trace_id = response.trace_id
-        url = '/me/applications/{0}/build_logs'.format(application)
-        while True:
-            try:
-                res = self.client.get(url)
-                for item in res.items:
-                    source = item.get('source', 'api')
-                    if source == 'api':
-                        source = '-->'
-                    else:
-                        source = '[{0}]'.format(source)
-                    line = u'{0} {1} {2}'.format(
-                        self.iso_dtime_local(item['timestamp']).strftime('%H:%M:%S'),
-                        source,
-                        item['message'])
-                    print line
-                next = res.find_link('next')
-                if not next:
-                    break
-                url = next.get('href')
-                time.sleep(3)
-            except KeyboardInterrupt:
-                self.error('You\'ve closed your log stream with Ctrl-C, ' \
-                    'but the deployment is still running in the background.')
-                self.error('If you aborted because of an error ' \
-                    '(e.g. the deployment got stuck), please e-mail ' \
-                    'support@dotcloud.com and mention Push ID "{0}"' \
-                    .format(deploy_trace_id))
-                self.die()
-        urls = self.get_url(application)
-        if urls:
-            self.success('Application is live at {c.bright}{url}{c.reset}' \
-                .format(url=urls.values()[-1][-1]['url'], c=self.colors))
-        else:
-            self.success('Application is live')
 
     def deploy(self, application, clean=False, revision=None):
         self.info('Deploying {0}'.format(application))
@@ -619,6 +583,7 @@ class CLI(object):
                 .format(url=urls.values()[-1][-1]['url'], c=self.colors))
         else:
             self.success('Application is live')
+        return 0
 
     @property
     def common_ssh_options(self):
@@ -700,13 +665,14 @@ class CLI(object):
         ssh_endpoint = self.get_ssh_endpoint(args)
         if args.command:
             cmd_args = [args.command] + args.args
-            self.info('Executing "{0}" on service ({1}) instance #{2}'.format(
+            self.info('Executing "{0}" on service ({1}) instance #{2} (application {3})'.format(
                 ' '.join(cmd_args), ssh_endpoint['service'],
-                ssh_endpoint['instance']))
+                ssh_endpoint['instance'], args.application))
         else:
             cmd_args = None
-            self.info('Opening a shell on service ({0}) instance #{1}'.format(
-                    ssh_endpoint['service'], ssh_endpoint['instance']))
+            self.info('Opening a shell on service ({0}) instance #{1} (application) {2}'.format(
+                    ssh_endpoint['service'], ssh_endpoint['instance'],
+                    args.application))
         return self.spawn_ssh(ssh_endpoint, cmd_args).wait()
 
     def parse_url(self, url):
@@ -729,9 +695,10 @@ class CLI(object):
                 self.die('Service ({0}) instance #{1} not found'.format(
                     service_name, instance_id))
             raise
-        self.info('Service ({0}) instance #{1} is being restarted.'.format(
-            service_name, instance_id))
+        self.info('Service ({0}) instance #{1} of application {2} is being restarted.'.format(
+            service_name, instance_id, args.application))
 
+    @app_local
     def cmd_logs(self, args):
         cmd = 'cmd_logs_{0}'.format(args.logs)
         if not hasattr(self, cmd):
