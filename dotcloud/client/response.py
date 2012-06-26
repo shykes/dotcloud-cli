@@ -13,7 +13,7 @@ class BaseResponse(object):
             first_line = next(stream)
             data = json.loads(first_line)
         else:
-            if len(res.text):
+            if res.text:
                 data = json.loads(res.text)
             else:
                 data = None
