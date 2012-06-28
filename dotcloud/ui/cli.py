@@ -523,19 +523,19 @@ class CLI(object):
     def cmd_push(self, args):
         url = '/me/applications/{0}/push-url'.format(args.application)
         res = self.client.get(url)
-        push_url = res.item.get('url')
-        self.rsync_code(args, push_url)
+        rsync_endpoint = res.item.get('url')
+        self.push_with_rsync(args, rsync_endpoint, args.path)
         return self.deploy(args.application, clean=args.clean)
 
-    def rsync_code(self, args, push_url, local_dir='.'):
+    def push_with_rsync(self, args, rsync_endpoint, local_dir='.'):
+        if not local_dir.endswith('/'):
+            local_dir += '/'
         self.info('Syncing code from "{0}" to application {1}'.format(local_dir,
             args.application))
-        url = self.parse_url(push_url)
+        url = self.parse_url(rsync_endpoint)
         ssh = ' '.join(self.common_ssh_options + ['-o', 'LogLevel=QUIET'])
         ssh += ' -p {0}'.format(url['port'])
         excludes = ('*.pyc', '.git', '.hg')
-        if not local_dir.endswith('/'):
-            local_dir += '/'
         ignore_file = os.path.join(local_dir, '.dotcloudignore')
         ignore_opt = ('--exclude-from', ignore_file) if os.path.exists(ignore_file) else tuple()
         rsync = ('rsync', '-lpthrvz', '--delete', '--safe-links') + \
