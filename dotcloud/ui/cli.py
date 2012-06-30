@@ -70,7 +70,7 @@ class CLI(object):
     def run(self, args):
         p = get_parser(self.cmd)
         args = p.parse_args(args)
-        self.load_config(args)
+        self.load_local_config(args)
         cmd = 'cmd_{0}'.format(args.cmd)
         if not hasattr(self, cmd):
             raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
@@ -115,7 +115,7 @@ class CLI(object):
         config.update(new_config)
         self.save_config(config)
 
-    def load_config(self, args):
+    def load_local_config(self, args):
         try:
             io = open('.dotcloud/config')
             config = json.load(io)
@@ -125,7 +125,7 @@ class CLI(object):
         except IOError, e:
             self.config = {}
 
-    def destroy_config(self):
+    def destroy_local_config(self):
         try:
             shutil.rmtree('.dotcloud')
         except:
@@ -284,7 +284,7 @@ class CLI(object):
     @app_local
     def cmd_disconnect(self, args):
         self.info('Disconnecting the current directory from "{0}"'.format(args.application))
-        self.destroy_config()
+        self.destroy_local_config()
 
     @app_local
     def cmd_destroy(self, args):
@@ -310,7 +310,7 @@ class CLI(object):
         self.success('Destroyed.')
         if args.service is None:
             if self.config.get('application') == args.application:
-                self.destroy_config()
+                self.destroy_local_config()
 
     def _connect(self, application):
         self.info('Connecting with the application "{0}"'.format(application))
