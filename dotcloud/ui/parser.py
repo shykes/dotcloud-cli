@@ -121,12 +121,26 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     push.add_argument('path', nargs='?', default='./',
             help='Path to the directory to push (by default "./")')
-    push.add_argument('--clean', action='store_true', help='clean build')
+    push.add_argument('--clean', action='store_true',
+            help='Do a full build (rather than incremental)')
 
-    deploy = subcmd.add_parser('deploy', help='Deploy the code',
+    rsync_or_dvcs = push.add_mutually_exclusive_group()
+    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
+            help='Use rsync to push (default)')
+    rsync_or_dvcs.add_argument('--git', action='store_true',
+            help='Use git to push rather')
+    rsync_or_dvcs.add_argument('--hg', action='store_true',
+            help='Use mercurial to push')
+
+    push.add_argument('--branch', '-b',
+            help='Specify the branch to push (when pushing via dvcs) (by default, use the active one)')
+
+    deploy = subcmd.add_parser('deploy', help='Deploy a specific version',
             parents=[common_parser])
-    deploy.add_argument('revision', help='Revision to deploy', default='latest', nargs='?')
-    deploy.add_argument('--clean', action='store_true', help='clean build')
+    deploy.add_argument('revision',
+            help='Revision to deploy (Symbolic revisions "latest" and "previous" are supported)')
+    deploy.add_argument('--clean', action='store_true',
+            help='If a build is needed, do a full build (rather than incremental)')
 
     logs = subcmd.add_parser('logs', help='Play with logs',
             parents=[common_parser]).add_subparsers(dest='logs')

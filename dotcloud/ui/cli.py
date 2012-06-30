@@ -519,11 +519,21 @@ class CLI(object):
     def cmd_deploy(self, args):
         self.deploy(args.application, clean=args.clean, revision=args.revision)
 
+    def _select_endpoint(self, endpoints, protocol):
+        try:
+            return [endpoint for endpoint in endpoints
+                    if endpoint['protocol'] == protocol][0]['endpoint']
+        except IndexError:
+            self.die('Unable to find {0} endpoint in [{1}]'.format(
+                protocol,
+                ', '.join(endpoint['protocol'] for endpoint in endpoints))
+                )
+
     @app_local
     def cmd_push(self, args):
-        url = '/me/applications/{0}/push-url'.format(args.application)
-        res = self.client.get(url)
-        rsync_endpoint = res.item.get('url')
+        url = '/me/applications/{0}/push-endpoints'.format(args.application)
+        endpoints = self.client.get(url).items
+        rsync_endpoint = self._select_endpoint(endpoints, 'rsync')
         self.push_with_rsync(args, rsync_endpoint, args.path)
         return self.deploy(args.application, clean=args.clean)
 
