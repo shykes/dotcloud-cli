@@ -908,3 +908,30 @@ class CLI(object):
                 sys.stdout.flush()
             else:
                 print formated_line
+
+    @app_local
+    def cmd_versions(self, args):
+        self.info('Versions for application {0}'.format(args.application))
+        url = '/me/applications/{0}/versions'.format(
+                args.application)
+        versions = [x['version'] for x in self.client.get(url).items]
+
+        url = '/me/applications/{0}/revision'.format(args.application)
+        revision = self.client.get(url).item['revision']
+
+        for version in versions:
+            if revision == version:
+                print '*', self.colors.green(version)
+            else:
+                print ' ', version
+
+    @app_local
+    def cmd_revision(self, args):
+        url = '/me/applications/{0}/revision'.format(args.application)
+        revision = self.client.get(url).item
+        deployed_at = revision['deployed_at']
+        if deployed_at is not None:
+            print '{0} (deployed the {1})'.format(revision['revision'],
+                    self.iso_dtime_local(revision['deployed_at']))
+        else:
+            print revision['revision']

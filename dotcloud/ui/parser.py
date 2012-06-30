@@ -258,4 +258,9 @@ def get_parser(name='dotcloud'):
     service_list = service.add_parser('list', help='List the services',
             parents=[common_parser])
 
+    versions = subcmd.add_parser('versions',
+            help='Display all the knowns version of the application')
+    revision = subcmd.add_parser('revision',
+            help='Display the deployed version of the application')
+
     return parser
