@@ -725,9 +725,9 @@ class CLI(object):
         else:
             url = '/me/activity'
         print 'time', ' ' * 14,
-        print 'category action application.service (details)'
+        print 'category action   application.service (details)'
         for activity in self.client.get(url).items:
-            print '{ts:19} {category:8} {action:6}'.format(
+            print '{ts:19} {category:8} {action:8}'.format(
                     ts=str(self.iso_dtime_local(activity['created_at'])),
                     **activity),
             category = activity['category']
@@ -735,12 +735,25 @@ class CLI(object):
                 print '{application}'.format(**activity),
                 if activity['action'] == 'deploy':
                     print '(revision={revision} build={build})' \
-                        .format(**activity)
-                else:
-                    print
+                        .format(**activity),
             elif category == 'alias':
                 print '{application}.{service}'.format(**activity),
-                print '(cname={alias})'.format(**activity)
+                print '(cname={alias})'.format(**activity),
+            elif category == 'service':
+                print '{application}.{service}'.format(**activity),
+                action = activity['action']
+                if action == 'scale':
+                    scale = activity['scale']
+                    if scale == 'instances':
+                        print '(instances={0})'.format(activity['value']),
+                    elif scale == 'memory':
+                        print '(memory={0})'.format(
+                                bytes2human(activity['value'])
+                                ),
+            user = activity.get('user')
+            if user is not None and not user['self']:
+                print '/by <{0}>'.format(user.get('username')),
+            print
 
     def _logs_deploy_list(self, args):
         deployments = self.client.get('/me/applications/{0}/logs/deployments'.format(
