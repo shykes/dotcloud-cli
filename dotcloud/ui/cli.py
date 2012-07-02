@@ -333,28 +333,28 @@ class CLI(object):
                 print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
 
     @app_local
-    def cmd_alias(self, args):
+    def cmd_domain(self, args):
         if args.subcmd == 'list':
             url = '/me/applications/{0}/services'.format(args.application)
             res = self.client.get(url)
             for svc in res.items:
-                url = '/me/applications/{0}/services/{1}/aliases'\
+                url = '/me/applications/{0}/services/{1}/domains'\
                     .format(args.application, svc.get('name'))
                 res = self.client.get(url)
-                for alias in res.items:
-                    print '{0}: {1}'.format(svc.get('name'), alias.get('alias'))
+                for domain in res.items:
+                    print '{0}: {1}'.format(svc.get('name'), domain.get('domain'))
         elif args.subcmd == 'add':
-            url = '/me/applications/{0}/services/{1}/aliases' \
+            url = '/me/applications/{0}/services/{1}/domains' \
                 .format(args.application, args.service)
-            res = self.client.post(url, {'alias': args.alias})
-            self.success('Alias "{0}" created for "{1}"'.format(
-                args.alias, args.service))
+            res = self.client.post(url, {'domain': args.domain})
+            self.success('domain "{0}" created for "{1}"'.format(
+                args.domain, args.service))
         elif args.subcmd == 'rm':
-            url = '/me/applications/{0}/services/{1}/aliases/{2}' \
-                .format(args.application, args.service, args.alias)
+            url = '/me/applications/{0}/services/{1}/domains/{2}' \
+                .format(args.application, args.service, args.domain)
             self.client.delete(url)
-            self.success('Alias "{0}" deleted from "{1}"'.format(
-                args.alias, args.service))
+            self.success('domain "{0}" deleted from "{1}"'.format(
+                args.domain, args.service))
 
     @app_local
     def cmd_var(self, args):
@@ -736,9 +736,9 @@ class CLI(object):
                 if activity['action'] == 'deploy':
                     print '(revision={revision} build={build})' \
                         .format(**activity),
-            elif category == 'alias':
+            elif category == 'domain':
                 print '{application}.{service}'.format(**activity),
-                print '(cname={alias})'.format(**activity),
+                print '(cname={domain})'.format(**activity),
             elif category == 'service':
                 print '{application}.{service}'.format(**activity),
                 action = activity['action']

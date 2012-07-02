@@ -240,18 +240,18 @@ def get_parser(name='dotcloud'):
             help='Restart the first instance of a ' \
                     'given service (ex: www) or a specific one (ex: www.1)')
 
-    alias = subcmd.add_parser('alias', help='Manage aliases for the service',
+    domain = subcmd.add_parser('domain', help='Manage domains for the service',
             parents=[common_parser]).add_subparsers(dest='subcmd')
-    alias_list = alias.add_parser('list', help='List the aliases',
+    domain_list = domain.add_parser('list', help='List the domains',
             parents=[common_parser])
-    alias_add = alias.add_parser('add', help='Add a new alias',
+    domain_add = domain.add_parser('add', help='Add a new domain',
             parents=[common_parser])
-    alias_add.add_argument('service', help='Service to set alias for')
-    alias_add.add_argument('alias', help='New alias (domain name)')
-    alias_rm = alias.add_parser('rm', help='Remove an alias',
+    domain_add.add_argument('service', help='Service to set domain for')
+    domain_add.add_argument('domain', help='New domain name')
+    domain_rm = domain.add_parser('rm', help='Remove a domain',
             parents=[common_parser])
-    alias_rm.add_argument('service', help='Service to remove alias from')
-    alias_rm.add_argument('alias', help='Alias (domain name) to remove')
+    domain_rm.add_argument('service', help='Service to remove the domain from')
+    domain_rm.add_argument('domain', help='domain name to remove')
 
     service = subcmd.add_parser('service', help='Manage services',
             parents=[common_parser]).add_subparsers(dest='subcmd')
