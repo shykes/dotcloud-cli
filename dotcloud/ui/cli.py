@@ -40,7 +40,11 @@ class CLI(object):
         self.global_config = GlobalConfig()
         self.setup_auth()
         if username:
-            self.user = self.client.make_prefix_client('/users/{username}'.format(username=username))
+            self.info('Assuming username ' \
+                '{c.bright}{username}{c.reset}' \
+                .format(username=username, c=self.colors))
+            self.user = self.client.make_prefix_client('/users/{username}' \
+                    .format(username=username))
         else:
             self.user = self.client.make_prefix_client('/me')
         self.cmd = os.path.basename(sys.argv[0])
