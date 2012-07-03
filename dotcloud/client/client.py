@@ -15,6 +15,14 @@ class RESTClient(object):
         self.authenticator = None
         self._make_session()
 
+    def make_prefix_client(self, prefix=''):
+        subclient = RESTClient(
+                endpoint='{endpoint}{prefix}'.format(
+                    endpoint=self.endpoint, prefix=prefix),
+                debug=self.debug)
+        subclient.session = self.session
+        return subclient
+
     def _make_session(self):
         headers = {'Accept': 'application/json'}
         hooks = {
@@ -44,34 +52,35 @@ class RESTClient(object):
         return r
 
     def build_url(self, path):
-        if path.startswith('/'):
+        if path == '' or path.startswith('/'):
             return self.endpoint + path
         else:
             return path
 
-    def get(self, path, streaming=False):
+    def get(self, path='', streaming=False):
         return self.make_response(self.session.get(self.build_url(path)),
                 streaming)
 
-    def post(self, path, payload={}):
+    def post(self, path='', payload={}):
         return self.make_response(
             self.session.post(self.build_url(path), data=json.dumps(payload),
                 headers={'Content-Type': 'application/json'}))
 
-    def put(self, path, payload={}):
+    def put(self, path='', payload={}):
         return self.make_response(
             self.session.put(self.build_url(path), data=json.dumps(payload),
                 headers={'Content-Type': 'application/json'}))
 
-    def delete(self, path):
+    def delete(self, path=''):
         return self.make_response(
             self.session.delete(self.build_url(path),
                 headers={'Content-Length': '0'}))
 
-    def patch(self, path, payload={}):
+    def patch(self, path='', payload={}):
         return self.make_response(
             self.session.patch(self.build_url(path), data=json.dumps(payload),
                 headers={'Content-Type': 'application/json'}))
+
     def make_response(self, res, streaming=False):
         trace_id = res.headers.get('X-DotCloud-TraceID')
         if res.headers['Content-Type'] == 'application/json':

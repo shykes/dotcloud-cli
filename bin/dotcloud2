@@ -12,5 +12,6 @@ if __name__ == '__main__':
    import os
    url = os.environ.get('DOTCLOUD_API_ENDPOINT', 'https://api-experimental.dotcloud.com/v1')
    debug = os.environ.get('DOTCLOUD_DEBUG', False)
-   cli = CLI(endpoint=url, debug=debug)
+   username = os.environ.get('DOTCLOUD_USERNAME', None)
+   cli = CLI(endpoint=url, debug=debug, username=username)
    exit(cli.run(sys.argv[1:]))

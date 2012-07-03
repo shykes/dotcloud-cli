@@ -25,7 +25,7 @@ import calendar
 
 class CLI(object):
     __version__ = VERSION
-    def __init__(self, debug=False, colors=None, endpoint=None):
+    def __init__(self, debug=False, colors=None, endpoint=None, username=None):
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
         self.client = RESTClient(endpoint=endpoint, debug=debug)
         self.debug = debug
@@ -39,6 +39,10 @@ class CLI(object):
         }
         self.global_config = GlobalConfig()
         self.setup_auth()
+        if username:
+            self.user = self.client.make_prefix_client('/users/{username}'.format(username=username))
+        else:
+            self.user = self.client.make_prefix_client('/me')
         self.cmd = os.path.basename(sys.argv[0])
 
     def setup_auth(self):
@@ -200,7 +204,7 @@ class CLI(object):
         # TODO Check ~/.dotcloud stuff
         try:
             self.info('Checking the authentication status')
-            res = self.client.get('/me')
+            res = self.user.get()
             self.success('Client is authenticated as ' \
                 '{c.bright}{username}{c.reset}' \
                 .format(username=res.item['username'], c=self.colors))
@@ -243,7 +247,7 @@ class CLI(object):
         return json.loads(res.text)
 
     def get_keys(self):
-        res = self.client.get('/me/private_keys')
+        res = self.user.get('/private_keys')
         try:
             key = res.items[0]['private_key']
             self.global_config.save_key(key)
@@ -251,7 +255,7 @@ class CLI(object):
             self.die('Retrieving push keys failed. You might have to run `{0} check` again'.format(self.cmd))
 
     def cmd_list(self, args):
-        res = self.client.get('/me/applications')
+        res = self.user.get('/applications')
         for app in sorted(res.items, key=lambda x: x['name']):
             if app['name'] == args.application:
                 print '* ' + self.colors.green(app['name'])
@@ -260,9 +264,9 @@ class CLI(object):
 
     def cmd_create(self, args):
         self.info('Creating a new application called "{0}"'.format(args.application))
-        url = '/me/applications'
+        url = '/applications'
         try:
-            res = self.client.post(url, { 'name': args.application, 'repository': args.repo })
+            res = self.user.post(url, { 'name': args.application, 'repository': args.repo })
         except RESTAPIError as e:
             if e.code == 409:
                 self.die('Application "{0}" already exists.'.format(args.application))
@@ -273,9 +277,9 @@ class CLI(object):
             self._connect(args.application)
 
     def cmd_connect(self, args):
-        url = '/me/applications/{0}'.format(args.application)
+        url = '/applications/{0}'.format(args.application)
         try:
-            res = self.client.get(url)
+            res = self.user.get(url)
             self._connect(args.application)
         except RESTAPIError:
             self.die('Application "{app}" doesn\'t exist. Try `{cmd} create <appname>`.' \
@@ -291,17 +295,17 @@ class CLI(object):
         if args.service is None:
             what_destroy = 'application'
             to_destroy = args.application
-            url = '/me/applications/{0}'.format(args.application)
+            url = '/applications/{0}'.format(args.application)
         else:
             what_destroy = 'service'
             to_destroy = '{0}.{1}'.format(args.application, args.service)
-            url = '/me/applications/{0}/services/{1}'.format(args.application, args.service)
+            url = '/applications/{0}/services/{1}'.format(args.application, args.service)
 
         if not self.confirm('Destroy the {0} "{1}"?'.format(what_destroy, to_destroy)):
             return
         self.info('Destroying "{0}"'.format(to_destroy))
         try:
-            res = self.client.delete(url)
+            res = self.user.delete(url)
         except RESTAPIError as e:
             if e.code == 404:
                 self.die('The {0} "{1}" does not exist.'.format(what_destroy, to_destroy))
@@ -327,42 +331,42 @@ class CLI(object):
     @app_local
     def cmd_service(self, args):
         if args.subcmd == 'list':
-            url = '/me/applications/{0}/services'.format(args.application)
-            res = self.client.get(url)
+            url = '/applications/{0}/services'.format(args.application)
+            res = self.user.get(url)
             for service in res.items:
                 print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
 
     @app_local
     def cmd_domain(self, args):
         if args.subcmd == 'list':
-            url = '/me/applications/{0}/services'.format(args.application)
-            res = self.client.get(url)
+            url = '/applications/{0}/services'.format(args.application)
+            res = self.user.get(url)
             for svc in res.items:
-                url = '/me/applications/{0}/services/{1}/domains'\
+                url = '/applications/{0}/services/{1}/domains'\
                     .format(args.application, svc.get('name'))
-                res = self.client.get(url)
+                res = self.user.get(url)
                 for domain in res.items:
                     print '{0}: {1}'.format(svc.get('name'), domain.get('domain'))
         elif args.subcmd == 'add':
-            url = '/me/applications/{0}/services/{1}/domains' \
+            url = '/applications/{0}/services/{1}/domains' \
                 .format(args.application, args.service)
-            res = self.client.post(url, {'domain': args.domain})
+            res = self.user.post(url, {'domain': args.domain})
             self.success('domain "{0}" created for "{1}"'.format(
                 args.domain, args.service))
         elif args.subcmd == 'rm':
-            url = '/me/applications/{0}/services/{1}/domains/{2}' \
+            url = '/applications/{0}/services/{1}/domains/{2}' \
                 .format(args.application, args.service, args.domain)
-            self.client.delete(url)
+            self.user.delete(url)
             self.success('domain "{0}" deleted from "{1}"'.format(
                 args.domain, args.service))
 
     @app_local
     def cmd_var(self, args):
-        url = '/me/applications/{0}/variables'.format(args.application)
+        url = '/applications/{0}/variables'.format(args.application)
         deploy = None
         if args.subcmd == 'list':
             self.info('Variables for application {0}'.format(args.application))
-            var = self.client.get(url).item
+            var = self.user.get(url).item
             for name in sorted(var.keys()):
                 print '='.join((name, var.get(name)))
         elif args.subcmd == 'set':
@@ -372,7 +376,7 @@ class CLI(object):
             for pair in args.values:
                 key, val = pair.split('=')
                 patch[key] = val
-            self.client.patch(url, patch)
+            self.user.patch(url, patch)
             deploy = True
         elif args.subcmd == 'unset':
             self.info('Un-setting {0} (application {1})'.format(
@@ -380,7 +384,7 @@ class CLI(object):
             patch = {}
             for name in args.variables:
                 patch[name] = None
-            self.client.patch(url, patch)
+            self.user.patch(url, patch)
             deploy = True
         else:
             self.die('Unknown sub command {0}'.format(subcmd), stderr=True)
@@ -399,18 +403,18 @@ class CLI(object):
         for svc in args.services:
             try:
                 if svc.action == 'instances':
-                    url = '/me/applications/{0}/services/{1}/instances' \
+                    url = '/applications/{0}/services/{1}/instances' \
                         .format(args.application, svc.name)
                     self.info('Changing instances of {0} to {1}'.format(
                         svc.name, svc.original_value))
-                    self.client.put(url, {'instances': svc.value})
+                    self.user.put(url, {'instances': svc.value})
                 elif svc.action == 'memory':
                     memory = round_memory(svc.value)
                     self.info('Changing memory of {0} to {1}B'.format(
                         svc.name, bytes2human(memory)))
-                    url = '/me/applications/{0}/services/{1}/memory' \
+                    url = '/applications/{0}/services/{1}mory' \
                         .format(args.application, svc.name)
-                    self.client.put(url, {'memory': memory})
+                    self.user.put(url, {'memory': memory})
             except RESTAPIError as e:
                 if e.code == requests.codes.bad_request:
                     self.die('Failed to scale {0} of "{1}": {2}'.format(
@@ -433,8 +437,8 @@ class CLI(object):
     @app_local
     def cmd_info(self, args):
         self.info('Application {0}'.format(args.application))
-        url = '/me/applications/{0}/services'.format(args.application)
-        res = self.client.get(url)
+        url = '/applications/{0}/services'.format(args.application)
+        res = self.user.get(url)
 
         if not res.items:
             self.warning('It seems you haven\'t deployed your application.')
@@ -445,8 +449,8 @@ class CLI(object):
             print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
             self.dump_service(service['instances'][0], indent=2)
 
-        url = '/me/applications/{0}'.format(args.application)
-        res = self.client.get(url)
+        url = '/applications/{0}'.format(args.application)
+        res = self.user.get(url)
         repo = res.item.get('repository')
         revision = res.item.get('revision', None)
 
@@ -500,8 +504,8 @@ class CLI(object):
     def get_url(self, application, service=None, type='http'):
         if service is None:
             urls = {}
-            url = '/me/applications/{0}/services'.format(application)
-            res = self.client.get(url)
+            url = '/applications/{0}/services'.format(application)
+            res = self.user.get(url)
             for service in res.items:
                 instance = service['instances'][0]
                 u = [p for p in instance.get('ports', []) if p['name'] == type]
@@ -509,9 +513,9 @@ class CLI(object):
                     urls[service['name']] = u
             return urls
         else:
-            url = '/me/applications/{0}/services/{1}'.format(application,
+            url = '/applications/{0}/services/{1}'.format(application,
                 service)
-            res = self.client.get(url)
+            res = self.user.get(url)
             instance = res.item['instances'][0]
             return [p for p in instance.get('ports', []) if p['name'] == type]
 
@@ -531,8 +535,8 @@ class CLI(object):
 
     @app_local
     def cmd_push(self, args):
-        url = '/me/applications/{0}/push-endpoints'.format(args.application)
-        endpoints = self.client.get(url).items
+        url = '/applications/{0}/push-endpoints'.format(args.application)
+        endpoints = self.user.get(url).items
         rsync_endpoint = self._select_endpoint(endpoints, 'rsync')
         self.push_with_rsync(args, rsync_endpoint, args.path)
         return self.deploy(args.application, clean=args.clean)
@@ -564,8 +568,8 @@ class CLI(object):
 
     def deploy(self, application, clean=False, revision=None):
         self.info('Deploying {0}'.format(application))
-        url = '/me/applications/{0}/revision'.format(application)
-        response = self.client.put(url, {'revision': revision, 'clean': clean})
+        url = '/applications/{0}/revision'.format(application)
+        response = self.user.put(url, {'revision': revision, 'clean': clean})
         deploy_trace_id = response.trace_id
         deploy_id = response.item['deploy_id']
 
@@ -626,9 +630,9 @@ class CLI(object):
     def get_ssh_endpoint(self, args):
         service_name, instance_id = self.parse_service_instance(args)
 
-        url = '/me/applications/{0}/services/{1}'.format(args.application,
+        url = '/applications/{0}/services/{1}'.format(args.application,
                 service_name)
-        service = self.client.get(url).item
+        service = self.user.get(url).item
 
         try:
             instances = sorted(service['instances'], key=lambda i: i['container_id'])
@@ -694,10 +698,10 @@ class CLI(object):
     def cmd_restart(self, args):
         service_name, instance_id = self.parse_service_instance(args)
 
-        url = '/me/applications/{0}/services/{1}/restart?instance={2}' \
+        url = '/applications/{0}/services/{1}/restart?instance={2}' \
             .format(args.application, service_name, instance_id)
         try:
-            self.client.post(url)
+            self.user.post(url)
         except RESTAPIError as e:
             if e.code == 404:
                 self.die('Service ({0}) instance #{1} not found'.format(
@@ -721,12 +725,12 @@ class CLI(object):
 
     def cmd_activity(self, args):
         if not args.all and args.application:
-            url = '/me/applications/{0}/activity'.format(args.application)
+            url = '/applications/{0}/activity'.format(args.application)
         else:
-            url = '/me/activity'
+            url = '/activity'
         print 'time', ' ' * 14,
         print 'category action   application.service (details)'
-        for activity in self.client.get(url).items:
+        for activity in self.user.get(url).items:
             print '{ts:19} {category:8} {action:8}'.format(
                     ts=str(self.iso_dtime_local(activity['created_at'])),
                     **activity),
@@ -756,7 +760,7 @@ class CLI(object):
             print
 
     def _logs_deploy_list(self, args):
-        deployments = self.client.get('/me/applications/{0}/logs/deployments'.format(
+        deployments = self.user.get('/applications/{0}/logs/deployments'.format(
             args.application))
         print 'deployment date', ' ' * 3,
         print 'revision', ' ' * 15, 'deploy_id [application {0}]'.format(args.application)
@@ -776,7 +780,7 @@ class CLI(object):
         print '{0} logs deploy'.format(selfcmd)
 
     def _stream_formated_logs(self, url, filter_svc=None, filter_inst=None):
-        response = self.client.get(url, streaming=True)
+        response = self.user.get(url, streaming=True)
         meta = response.item
         last_ts = None
         for log in response.items:
@@ -821,7 +825,7 @@ class CLI(object):
 
     def _stream_deploy_logs(self, app, did=None, filter_svc=None,
             filter_inst=None, deploy_trace_id=None, follow=False, lines=None):
-        url = '/me/applications/{0}/logs/deployments/{1}?stream'.format(app,
+        url = '/applications/{0}/logs/deployments/{1}?stream'.format(app,
                 did or 'latest')
 
         if follow:
@@ -886,7 +890,7 @@ class CLI(object):
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
-        url = '/me/applications/{0}/logs/application?stream'.format(
+        url = '/applications/{0}/logs/application?stream'.format(
                 args.application)
 
         if not args.no_follow:
@@ -912,12 +916,12 @@ class CLI(object):
     @app_local
     def cmd_versions(self, args):
         self.info('Versions for application {0}'.format(args.application))
-        url = '/me/applications/{0}/versions'.format(
+        url = '/applications/{0}/versions'.format(
                 args.application)
-        versions = [x['version'] for x in self.client.get(url).items]
+        versions = [x['version'] for x in self.user.get(url).items]
 
-        url = '/me/applications/{0}/revision'.format(args.application)
-        revision = self.client.get(url).item['revision']
+        url = '/applications/{0}/revision'.format(args.application)
+        revision = self.user.get(url).item['revision']
 
         for version in versions:
             if revision == version:
@@ -927,8 +931,8 @@ class CLI(object):
 
     @app_local
     def cmd_revision(self, args):
-        url = '/me/applications/{0}/revision'.format(args.application)
-        revision = self.client.get(url).item
+        url = '/applications/{0}/revision'.format(args.application)
+        revision = self.user.get(url).item
         deployed_at = revision['deployed_at']
         if deployed_at is not None:
             print '{0} (deployed the {1})'.format(revision['revision'],
