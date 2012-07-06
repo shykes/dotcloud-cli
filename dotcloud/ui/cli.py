@@ -433,7 +433,7 @@ class CLI(object):
                     memory = round_memory(svc.value)
                     self.info('Changing memory of {0} to {1}B'.format(
                         svc.name, bytes2human(memory)))
-                    url = '/applications/{0}/services/{1}mory' \
+                    url = '/applications/{0}/services/{1}/memory' \
                         .format(args.application, svc.name)
                     self.user.put(url, {'memory': memory})
             except RESTAPIError as e:
