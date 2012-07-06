@@ -24,7 +24,7 @@ class GlobalConfig(object):
         try:
             self.data = json.load(file(self.path))
             self.loaded = True
-        except IOError:
+        except (IOError, ValueError):
             self.loaded = False
 
     def save(self):

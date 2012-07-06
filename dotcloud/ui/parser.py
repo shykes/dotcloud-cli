@@ -76,6 +76,19 @@ def get_parser(name='dotcloud'):
     conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app')
     conn.add_argument('application', help='specify the application')
 
+    rsync_or_dvcs = conn.add_mutually_exclusive_group()
+    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
+            help='Always use rsync to push (default)')
+    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
+            help='Always use git to push')
+    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
+            help='Always use mercurial to push')
+
+    branch_or_commit = conn.add_mutually_exclusive_group()
+    branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
+            help='Always use this branch when pushing via dvcs (by default, use the active one)')
+
+
     destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
             parents=[common_parser])
     destroy.add_argument('service', nargs='?', help='Specify the service')
@@ -127,13 +140,16 @@ def get_parser(name='dotcloud'):
     rsync_or_dvcs = push.add_mutually_exclusive_group()
     rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
             help='Use rsync to push (default)')
-    rsync_or_dvcs.add_argument('--git', action='store_true',
+    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
             help='Use git to push rather')
-    rsync_or_dvcs.add_argument('--hg', action='store_true',
+    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
             help='Use mercurial to push')
 
-    push.add_argument('--branch', '-b',
-            help='Specify the branch to push (when pushing via dvcs) (by default, use the active one)')
+    branch_or_commit = push.add_mutually_exclusive_group()
+    branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
+            help='Specify the branch to push when pushing via dvcs (by default, use the active one)')
+    branch_or_commit.add_argument('--commit', '-c', metavar='HASH',
+            help='Specify the commit hash to push when pushing via dvcs (by default, use the latest one)')
 
     deploy = subcmd.add_parser('deploy', help='Deploy a specific version',
             parents=[common_parser])

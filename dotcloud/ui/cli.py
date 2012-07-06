@@ -22,6 +22,9 @@ import requests
 import urllib2
 import datetime
 import calendar
+import tempfile
+import stat
+
 
 class CLI(object):
     __version__ = VERSION
@@ -78,6 +81,8 @@ class CLI(object):
     def run(self, args):
         p = get_parser(self.cmd)
         args = p.parse_args(args)
+        if not self.global_config.loaded and args.cmd != 'setup':
+            self.die('Not configured yet. Please run "{0} setup"'.format(self.cmd))
         self.load_local_config(args)
         cmd = 'cmd_{0}'.format(args.cmd)
         if not hasattr(self, cmd):
@@ -85,7 +90,7 @@ class CLI(object):
         try:
             return getattr(self, cmd)(args)
         except AuthenticationNotConfigured:
-            self.error('CLI authentication is not configured. Run `{0} setup` now.'.format(self.cmd))
+            self.error('Authentication is not configured. Please run `{0} setup`'.format(self.cmd))
         except RESTAPIError, e:
             handler = self.error_handlers.get(e.code, self.default_error_handler)
             handler(e)
@@ -129,9 +134,9 @@ class CLI(object):
             config = json.load(io)
             if not args.application:
                 args.application = config['application']
-            self.config = config
+            self.local_config = config
         except IOError, e:
-            self.config = {}
+            self.local_config = {}
 
     def destroy_local_config(self):
         try:
@@ -153,7 +158,7 @@ class CLI(object):
         return input
 
     def confirm(self, prompt, default='n'):
-        choice = ' [Yn]' if default == 'y' else ' [yN]'
+        choice = ' [Y/n]' if default == 'y' else ' [y/N]'
         input = raw_input(prompt + choice + ': ').lower()
         if input == '':
             input = default
@@ -212,7 +217,7 @@ class CLI(object):
             self.success('Client is authenticated as ' \
                 '{c.bright}{username}{c.reset}' \
                 .format(username=res.item['username'], c=self.colors))
-        except:
+        except Exception:
             raise
             self.die('Authentication failed. Run `{cmd} setup` to redo the authentication'.format(cmd=self.cmd))
         self.get_keys()
@@ -278,13 +283,13 @@ class CLI(object):
                 self.die('Creating app "{0}" failed: {1}'.format(args.application, e))
         self.success('Application "{0}" created.'.format(args.application))
         if self.confirm('Connect the current directory to "{0}"?'.format(args.application), 'y'):
-            self._connect(args.application)
+            self._connect(args)
 
     def cmd_connect(self, args):
         url = '/applications/{0}'.format(args.application)
         try:
-            res = self.user.get(url)
-            self._connect(args.application)
+            self.user.get(url)
+            self._connect(args)
         except RESTAPIError:
             self.die('Application "{app}" doesn\'t exist. Try `{cmd} create <appname>`.' \
                          .format(app=args.application, cmd=self.cmd))
@@ -317,16 +322,28 @@ class CLI(object):
                 raise
         self.success('Destroyed.')
         if args.service is None:
-            if self.config.get('application') == args.application:
+            if self.local_config.get('application') == args.application:
                 self.destroy_local_config()
 
-    def _connect(self, application):
-        self.info('Connecting with the application "{0}"'.format(application))
+    def _connect(self, args):
+        protocol_arg, protocol = self._selected_push_protocol(args)
+        branch = args.branch if protocol != 'rsync' else None
+
+        self.info('Connecting with the application "{0}"'.format(args.application))
         self.save_config({
-            'application': application,
+            'application': args.application,
             'version': self.__version__
         })
-        self.success('Connected.')
+
+        self.patch_config({
+            'push_protocol': protocol,
+            'push_branch': branch
+            })
+
+        push_args = [ protocol_arg ]
+        if branch:
+            push_args.append('--branch {0}'.format(branch))
+        self.success('Connected with default push options: {0}'.format(' '.join(push_args)))
 
     @app_local
     def cmd_app(self, args):
@@ -537,19 +554,138 @@ class CLI(object):
                 ', '.join(endpoint['protocol'] for endpoint in endpoints))
                 )
 
+    def _selected_push_protocol(self, args, use_local_config=False):
+        args_proto_map = {
+                'git': 'git',
+                'hg': 'mercurial',
+                'rsync': 'rsync'
+                }
+
+        for arg, protocol in args_proto_map.items():
+            if getattr(args, arg):
+                return ('--' + arg, protocol)
+
+        if use_local_config:
+            arg = self.local_config.get('push_protocol')
+            protocol = args_proto_map.get(arg)
+            if arg is None or protocol is None:
+                arg = 'rsync'
+        else:
+            arg = 'rsync'
+
+        return ('--' + arg, args_proto_map[arg])
+
     @app_local
     def cmd_push(self, args):
-        url = '/applications/{0}/push-endpoints'.format(args.application)
-        endpoints = self.user.get(url).items
-        rsync_endpoint = self._select_endpoint(endpoints, 'rsync')
-        self.push_with_rsync(args, rsync_endpoint, args.path)
+        protocol = self._selected_push_protocol(args, use_local_config=True)[1]
+        branch = self.local_config.get('push_branch') \
+                if protocol != 'rsync' else None
+        commit = None
+        parameters = ''
+
+        if args.git or args.hg:
+            if args.commit:
+                commit = args.commit
+                parameters = '?commit={0}'.format(args.commit)
+            else:
+                branch = args.branch
+                if not branch:
+                    get_local_branch = getattr(self,
+                            'get_local_branch_{0}'.format(protocol), None)
+                    if get_local_branch:
+                        branch = get_local_branch(args)
+                if branch:
+                    parameters = '?branch={0}'.format(branch)
+
+        url = '/applications/{0}/push-endpoints{1}'.format(args.application,
+                parameters)
+        endpoint = self._select_endpoint(self.user.get(url).items, protocol)
+        print endpoint
+
+        if commit or branch:
+            self.info('Pushing code with {0}'
+                    ', {1} {c.bright}{2}{c.reset} from "{3}" to application {4}'.format(
+                protocol, 'commit' if commit else 'branch',
+                commit or branch, args.path, args.application,
+                c=self.colors))
+        else:
+            self.info('Pushing code with {c.bright}{0}{c.reset} from "{1}" to application {2}'.format(
+                protocol, args.path, args.application, c=self.colors))
+
+        ret = getattr(self, 'push_with_{0}'.format(protocol))(args, endpoint)
+
+        if ret != 0:
+            return ret
+
         return self.deploy(args.application, clean=args.clean)
 
-    def push_with_rsync(self, args, rsync_endpoint, local_dir='.'):
+    def push_with_mercurial(self, args, mercurial_endpoint, local_dir='.'):
+        ssh_cmd = ' '.join(self.common_ssh_options + [
+            '-o', 'LogLevel=ERROR',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            ])
+
+        mercurial_cmd = ['hg', 'outgoing', '-f', '-e', "{0}".format(ssh_cmd),
+                mercurial_endpoint]
+
+        try:
+            outgoing_ret = subprocess.call(mercurial_cmd, close_fds=True, cwd=args.path)
+        except OSError:
+            self.die('Unable to spawn mercurial')
+
+        if outgoing_ret == 255:
+            self.die('Mercurial returned a fatal error')
+
+        if outgoing_ret == 1:
+            return 0  # nothing to push
+
+        mercurial_cmd = ['hg', 'push', '-f', '-e', "{0}".format(ssh_cmd),
+                mercurial_endpoint]
+
+        try:
+            subprocess.call(mercurial_cmd, close_fds=True, cwd=args.path)
+            return 0
+        except OSError:
+            self.die('Unable to spawn mercurial')
+
+    def push_with_git(self, args, git_endpoint):
+        ssh_cmd = ' '.join(self.common_ssh_options + [
+            '-o', 'LogLevel=ERROR',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            ])
+
+        git_cmd = ['git', 'push', '-f', '--all', '--progress', '--repo', git_endpoint]
+
+        git_ssh_script_fd, git_ssh_script_path = tempfile.mkstemp()
+        try:
+            with os.fdopen(git_ssh_script_fd, 'w') as git_ssh_script_writeable:
+                git_ssh_script_writeable.write("#!/bin/sh\nexec {0} $@\n".format(ssh_cmd))
+                os.fchmod(git_ssh_script_fd, stat.S_IREAD | stat.S_IEXEC)
+
+            try:
+                return subprocess.call(git_cmd,
+                        env=dict(GIT_SSH=git_ssh_script_path), close_fds=True,
+                        cwd=args.path)
+            except OSError:
+                self.die('Unable to spawn git')
+        finally:
+            os.remove(git_ssh_script_path)
+
+    def get_local_branch_git(self, args):
+        git_cmd = ['git', 'symbolic-ref', 'HEAD']
+        try:
+            ref = subprocess.check_output(git_cmd, close_fds=True,
+                    cwd=args.path)
+        except subprocess.CalledProcessError:
+            self.die('Unable to determine the active branch (git)')
+        except OSError:
+            self.die('Unable to spawn git')
+        return ref.strip().split('/')[-1]
+
+    def push_with_rsync(self, args, rsync_endpoint):
+        local_dir = args.path
         if not local_dir.endswith('/'):
             local_dir += '/'
-        self.info('Syncing code from "{0}" to application {1}'.format(local_dir,
-            args.application))
         url = self.parse_url(rsync_endpoint)
         ssh = ' '.join(self.common_ssh_options + ['-o', 'LogLevel=QUIET'])
         ssh += ' -p {0}'.format(url['port'])
@@ -563,12 +699,9 @@ class CLI(object):
                   '{user}@{host}:{dest}/'.format(user=url['user'],
                                                  host=url['host'], dest=url['path']))
         try:
-            ret = subprocess.call(rsync, close_fds=True)
-            if ret!= 0:
-                self.die('SSH connection failed')
-            return ret
+            return subprocess.call(rsync, close_fds=True)
         except OSError:
-            self.die('rsync failed')
+            self.die('Unable to spawn rsync')
 
     def deploy(self, application, clean=False, revision=None):
         self.info('Deploying {0}'.format(application))
@@ -591,7 +724,7 @@ class CLI(object):
                 .format(deploy_trace_id))
             self.error('If you want to continue following your deployment, ' \
                     'try:\n{0} logs deploy -d {1}'.format(
-                        os.path.basename(sys.argv[0]), deploy_id))
+                        self.cmd, deploy_id))
             self.die()
         urls = self.get_url(application)
         if urls:
@@ -604,7 +737,7 @@ class CLI(object):
     @property
     def common_ssh_options(self):
         return [
-            'ssh', '-t',
+            'ssh',
             '-i', self.global_config.key,
             '-o', 'StrictHostKeyChecking=no',
             '-o', 'PasswordAuthentication=no',
@@ -776,12 +909,11 @@ class CLI(object):
             deploy_id = log['deploy_id']
             print '{0} {1:24} {2}'.format(ts, log['revision'], deploy_id)
 
-        selfcmd = os.path.basename(sys.argv[0])
         if previous_deploy_id:
             print '-- <hint> display previous deployment\'s logs:'
-            print '{0} logs deploy -d {1}'.format(selfcmd, previous_deploy_id)
+            print '{0} logs deploy -d {1}'.format(self.cmd, previous_deploy_id)
         print '-- <hint> display latest deployment\'s logs:'
-        print '{0} logs deploy'.format(selfcmd)
+        print '{0} logs deploy'.format(self.cmd)
 
     def _stream_formated_logs(self, url, filter_svc=None, filter_inst=None):
         response = self.user.get(url, streaming=True)
@@ -865,7 +997,7 @@ class CLI(object):
                 .format(deploy_trace_id))
         self.error('if you want to continue following your deployment, ' \
                 'try:\n{0} logs deploy -d {1}'.format(
-                    os.path.basename(sys.argv[0]), did))
+                    self.cmd, did))
         self.die()
 
     def cmd_logs_deploy(self, args):

@@ -3,7 +3,7 @@ import json
 import sys
 import os
 
-from .auth import BasicAuth, OAuth2Auth
+from .auth import BasicAuth, OAuth2Auth, NullAuth
 from .response import *
 from .errors import RESTAPIError, AuthenticationNotConfigured
 
@@ -12,7 +12,7 @@ class RESTClient(object):
     def __init__(self, endpoint='https://api-experimental.dotcloud.com/v1', debug=False):
         self.endpoint = endpoint
         self.debug = debug
-        self.authenticator = None
+        self.authenticator = NullAuth()
         self._make_session()
 
     def make_prefix_client(self, prefix=''):
@@ -26,7 +26,7 @@ class RESTClient(object):
     def _make_session(self):
         headers = {'Accept': 'application/json'}
         hooks = {
-            'args': lambda args: self.authenticator.args_hook(args),
+            'args': self.authenticator.args_hook,
             'pre_request': self._pre_request_hook,
             'response': self._response_hook
         }
