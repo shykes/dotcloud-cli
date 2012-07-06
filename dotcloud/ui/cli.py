@@ -447,7 +447,6 @@ class CLI(object):
         # to trigger a deploy
         if any(svc.action == 'instances' for svc in args.services):
             ret = self.deploy(args.application)
-            print 'ret', ret
 
         if ret == 0:
             self.success('Successfully scaled {0} to {1}'.format(args.application,
@@ -600,7 +599,6 @@ class CLI(object):
         url = '/applications/{0}/push-endpoints{1}'.format(args.application,
                 parameters)
         endpoint = self._select_endpoint(self.user.get(url).items, protocol)
-        print endpoint
 
         if commit or branch:
             self.info('Pushing code with {0}'

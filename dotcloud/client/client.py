@@ -26,7 +26,7 @@ class RESTClient(object):
     def _make_session(self):
         headers = {'Accept': 'application/json'}
         hooks = {
-            'args': self.authenticator.args_hook,
+            'args': lambda args: self.authenticator.args_hook(args),
             'pre_request': self._pre_request_hook,
             'response': self._response_hook
         }
