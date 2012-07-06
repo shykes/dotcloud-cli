@@ -686,7 +686,7 @@ class CLI(object):
                 ssh_endpoint['instance'], args.application))
         else:
             cmd_args = None
-            self.info('Opening a shell on service ({0}) instance #{1} (application) {2}'.format(
+            self.info('Opening a shell on service ({0}) instance #{1} (application {2})'.format(
                     ssh_endpoint['service'], ssh_endpoint['instance'],
                     args.application))
         return self.spawn_ssh(ssh_endpoint, cmd_args).wait()
