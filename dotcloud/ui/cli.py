@@ -123,20 +123,30 @@ class CLI(object):
         try:
             io = open('.dotcloud/config')
             config = json.load(io)
-        except IOError, e:
+        except IOError:
             pass
         config.update(new_config)
         self.save_config(config)
 
     def load_local_config(self, args):
-        try:
-            io = open('.dotcloud/config')
-            config = json.load(io)
-            if not args.application:
-                args.application = config['application']
-            self.local_config = config
-        except IOError, e:
-            self.local_config = {}
+        last_path = None
+        path = os.environ.get('PWD') or os.getcwd()
+        for x in xrange(256):
+            try:
+                io = open(os.path.join(path, '.dotcloud/config'))
+                config = json.load(io)
+                if not args.application:
+                    args.application = config['application']
+                self.local_config = config
+                self.local_config_root = path
+                return
+            except IOError:
+                pass
+            last_path = path
+            path = os.path.split(path)[0]
+            if path == last_path:
+                break
+        self.local_config = {}
 
     def destroy_local_config(self):
         try:
@@ -600,15 +610,17 @@ class CLI(object):
                 parameters)
         endpoint = self._select_endpoint(self.user.get(url).items, protocol)
 
+        path = os.path.join(os.path.relpath(args.path or
+            self.local_config_root), '')
         if commit or branch:
             self.info('Pushing code with {0}'
                     ', {1} {c.bright}{2}{c.reset} from "{3}" to application {4}'.format(
                 protocol, 'commit' if commit else 'branch',
-                commit or branch, args.path, args.application,
+                commit or branch, path, args.application,
                 c=self.colors))
         else:
             self.info('Pushing code with {c.bright}{0}{c.reset} from "{1}" to application {2}'.format(
-                protocol, args.path, args.application, c=self.colors))
+                protocol, path, args.application, c=self.colors))
 
         ret = getattr(self, 'push_with_{0}'.format(protocol))(args, endpoint)
 
@@ -627,7 +639,8 @@ class CLI(object):
                 mercurial_endpoint]
 
         try:
-            outgoing_ret = subprocess.call(mercurial_cmd, close_fds=True, cwd=args.path)
+            outgoing_ret = subprocess.call(mercurial_cmd, close_fds=True,
+                    cwd=args.path, stdout=open(os.path.devnull))
         except OSError:
             self.die('Unable to spawn mercurial')
 
@@ -681,7 +694,7 @@ class CLI(object):
         return ref.strip().split('/')[-1]
 
     def push_with_rsync(self, args, rsync_endpoint):
-        local_dir = args.path
+        local_dir = args.path or self.local_config_root
         if not local_dir.endswith('/'):
             local_dir += '/'
         url = self.parse_url(rsync_endpoint)

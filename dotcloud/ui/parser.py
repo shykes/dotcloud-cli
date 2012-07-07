@@ -132,7 +132,7 @@ def get_parser(name='dotcloud'):
 
     push = subcmd.add_parser('push', help='Push the code',
             parents=[common_parser])
-    push.add_argument('path', nargs='?', default='./',
+    push.add_argument('path', nargs='?', default=None,
             help='Path to the directory to push (by default "./")')
     push.add_argument('--clean', action='store_true',
             help='Do a full build (rather than incremental)')
