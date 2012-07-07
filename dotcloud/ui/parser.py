@@ -275,8 +275,10 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
 
     versions = subcmd.add_parser('versions',
-            help='Display all the knowns version of the application')
+            help='Display all the knowns version of the application',
+            parents=[common_parser])
     revision = subcmd.add_parser('revision',
-            help='Display the deployed version of the application')
+            help='Display the deployed version of the application',
+            parents=[common_parser])
 
     return parser
