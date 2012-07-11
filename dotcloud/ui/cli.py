@@ -285,7 +285,7 @@ class CLI(object):
         self.info('Creating a new application called "{0}"'.format(args.application))
         url = '/applications'
         try:
-            res = self.user.post(url, { 'name': args.application, 'repository': args.repo })
+            self.user.post(url, { 'name': args.application })
         except RESTAPIError as e:
             if e.code == 409:
                 self.die('Application "{0}" already exists.'.format(args.application))
@@ -571,7 +571,7 @@ class CLI(object):
                 }
 
         for arg, protocol in args_proto_map.items():
-            if getattr(args, arg):
+            if getattr(args, arg, None):
                 return ('--' + arg, protocol)
 
         if use_local_config:

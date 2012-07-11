@@ -55,8 +55,21 @@ class ScaleOperation(object):
 
 def get_parser(name='dotcloud'):
 
-    common_parser = Parser(prog=name, description='dotcloud CLI', add_help=False)
+    common_parser = Parser(prog=name, add_help=False)
     common_parser.add_argument('--application', '-A', help='specify the application')
+
+    connect_options_parser = Parser(prog=name, add_help=False)
+    rsync_or_dvcs = connect_options_parser.add_mutually_exclusive_group()
+    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
+            help='Always use rsync to push (default)')
+    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
+            help='Always use git to push')
+    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
+            help='Always use mercurial to push')
+
+    branch_or_commit = connect_options_parser.add_mutually_exclusive_group()
+    branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
+            help='Always use this branch when pushing via dvcs (by default, use the active one)')
 
     parser = Parser(prog=name, description='dotcloud CLI',
             parents=[common_parser])
@@ -69,25 +82,13 @@ def get_parser(name='dotcloud'):
     check = subcmd.add_parser('check', help='Check the installation and authentication')
     setup = subcmd.add_parser('setup', help='Setup the client authentication')
 
-    create = subcmd.add_parser('create', help='Create a new application')
+    create = subcmd.add_parser('create', help='Create a new application',
+            parents=[connect_options_parser])
     create.add_argument('application', help='specify the application')
-    create.add_argument('--repo')
 
-    conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app')
+    conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app',
+            parents=[connect_options_parser])
     conn.add_argument('application', help='specify the application')
-
-    rsync_or_dvcs = conn.add_mutually_exclusive_group()
-    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
-            help='Always use rsync to push (default)')
-    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
-            help='Always use git to push')
-    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
-            help='Always use mercurial to push')
-
-    branch_or_commit = conn.add_mutually_exclusive_group()
-    branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
-            help='Always use this branch when pushing via dvcs (by default, use the active one)')
-
 
     destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
             parents=[common_parser])
