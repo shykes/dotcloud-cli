@@ -1061,11 +1061,11 @@ class CLI(object):
                 print formated_line
 
     @app_local
-    def cmd_versions(self, args):
+    def cmd_revisions(self, args):
         self.info('Versions for application {0}'.format(args.application))
-        url = '/applications/{0}/versions'.format(
+        url = '/applications/{0}/revisions'.format(
                 args.application)
-        versions = [x['version'] for x in self.user.get(url).items]
+        versions = [x['revision'] for x in self.user.get(url).items]
 
         url = '/applications/{0}/revision'.format(args.application)
         revision = self.user.get(url).item['revision']
@@ -1075,14 +1075,3 @@ class CLI(object):
                 print '*', self.colors.green(version)
             else:
                 print ' ', version
-
-    @app_local
-    def cmd_revision(self, args):
-        url = '/applications/{0}/revision'.format(args.application)
-        revision = self.user.get(url).item
-        deployed_at = revision['deployed_at']
-        if deployed_at is not None:
-            print '{0} (deployed the {1})'.format(revision['revision'],
-                    self.iso_dtime_local(revision['deployed_at']))
-        else:
-            print revision['revision']
