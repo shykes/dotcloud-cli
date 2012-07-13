@@ -734,8 +734,8 @@ class CLI(object):
                 'support@dotcloud.com and mention this trace ID: {0}'
                 .format(deploy_trace_id))
             self.error('If you want to continue following your deployment, ' \
-                    'try:\n{0} logs deploy -d {1}'.format(
-                        self.cmd, deploy_id))
+                    'try:\n{0}'.format(
+                        self._fmt_deploy_logs_command(deploy_id)))
             self.die()
         urls = self.get_url(application)
         if urls:
@@ -858,13 +858,6 @@ class CLI(object):
         self.info('Service ({0}) instance #{1} of application {2} is being restarted.'.format(
             service_name, instance_id, args.application))
 
-    @app_local
-    def cmd_logs(self, args):
-        cmd = 'cmd_logs_{0}'.format(args.logs)
-        if not hasattr(self, cmd):
-            raise NotImplementedError('cmd not implemented: "{0}"'.format(cmd))
-        return getattr(self, cmd)(args)
-
     def iso_dtime_local(self, strdate):
         bt = time.strptime(strdate, "%Y-%m-%dT%H:%M:%S.%fZ")
         ts = calendar.timegm(bt)
@@ -907,8 +900,9 @@ class CLI(object):
                 print '/by <{0}>'.format(user.get('username')),
             print
 
-    def _logs_deploy_list(self, args):
-        deployments = self.user.get('/applications/{0}/logs/deployments'.format(
+    @app_local
+    def cmd_dlist(self, args):
+        deployments = self.user.get('/applications/{0}/deployments'.format(
             args.application))
         print 'deployment date', ' ' * 3,
         print 'revision', ' ' * 15, 'deploy_id [application {0}]'.format(args.application)
@@ -922,9 +916,9 @@ class CLI(object):
 
         if previous_deploy_id:
             print '-- <hint> display previous deployment\'s logs:'
-            print '{0} logs deploy -d {1}'.format(self.cmd, previous_deploy_id)
+            print self._fmt_deploy_logs_command(previous_deploy_id)
         print '-- <hint> display latest deployment\'s logs:'
-        print '{0} logs deploy'.format(self.cmd)
+        print self._fmt_deploy_logs_command('latest')
 
     def _stream_formated_logs(self, url, filter_svc=None, filter_inst=None):
         response = self.user.get(url, streaming=True)
@@ -972,7 +966,7 @@ class CLI(object):
 
     def _stream_deploy_logs(self, app, did=None, filter_svc=None,
             filter_inst=None, deploy_trace_id=None, follow=False, lines=None):
-        url = '/applications/{0}/logs/deployments/{1}?stream'.format(app,
+        url = '/applications/{0}/deployments/{1}/logs?stream'.format(app,
                 did or 'latest')
 
         if follow:
@@ -1007,14 +1001,15 @@ class CLI(object):
                     'support@dotcloud.com and mention this trace ID: {0}'
                 .format(deploy_trace_id))
         self.error('if you want to continue following your deployment, ' \
-                'try:\n{0} logs deploy -d {1}'.format(
-                    self.cmd, did))
+                'try:\n{0}'.format(
+                    self._fmt_deploy_logs_command(did)))
         self.die()
 
-    def cmd_logs_deploy(self, args):
-        if args.list:
-            return self._logs_deploy_list(args)
+    def _fmt_deploy_logs_command(self, deploy_id):
+        return '{0} dlogs {1}'.format(self.cmd, deploy_id)
 
+    @app_local
+    def cmd_dlogs(self, args):
         filter_svc = None
         filter_inst = None
         if args.service:
@@ -1028,7 +1023,8 @@ class CLI(object):
                 filter_svc=filter_svc, filter_inst=filter_inst,
                 follow=follow, lines=args.lines)
 
-    def cmd_logs_app(self, args):
+    @app_local
+    def cmd_logs(self, args):
         filter_svc = None
         filter_inst = None
         if args.service:
@@ -1037,7 +1033,7 @@ class CLI(object):
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
-        url = '/applications/{0}/logs/application?stream'.format(
+        url = '/applications/{0}/logs?stream'.format(
                 args.application)
 
         if not args.no_follow:

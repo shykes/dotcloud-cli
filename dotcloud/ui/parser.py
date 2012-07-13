@@ -159,16 +159,17 @@ def get_parser(name='dotcloud'):
     deploy.add_argument('--clean', action='store_true',
             help='If a build is needed, do a full build (rather than incremental)')
 
-    logs = subcmd.add_parser('logs', help='Play with logs',
-            parents=[common_parser]).add_subparsers(dest='logs')
+    dlist = subcmd.add_parser('dlist', help='List recents deployments',
+            parents=[common_parser])
 
-    logs_deploy = logs.add_parser('deploy', help='Play with deployments logs',
-            epilog='''With no arguments it displays all the logs for the latest
-            deployment. If the deployment is not yet done, then follow the
-            real-time logs until completion.
-            ''', parents=[common_parser])
+    dlogs = subcmd.add_parser('dlogs', help='Play with deployments logs',
+            parents=[common_parser])
 
-    service_or_instance = logs_deploy.add_mutually_exclusive_group()
+    dlogs.add_argument('d', metavar='deployment_id',
+            help='Which recorded deployment to look at (discoverable though the command: dlist).'
+            ' or "latest".')
+
+    service_or_instance = dlogs.add_mutually_exclusive_group()
     service_or_instance.add_argument('service', nargs='?',
             help='Filter logs upon a given service (ex: www).'
             ' Can be refined further with --build')
@@ -176,47 +177,41 @@ def get_parser(name='dotcloud'):
             help='Filter logs upon a given service instance (ex: www.0).'
             ' Can be refined further with --build or --install')
 
-    list_or_rev = logs_deploy.add_mutually_exclusive_group()
-    list_or_rev.add_argument('--list', action='store_true',
-            help='List recently recorded  deployments')
-    list_or_rev.add_argument('-d', metavar='deployment_id',
-            help='Which recorded deployment to look at (discoverable with --list).'
-            ' When not specified, use the latest one.')
+    dlogs.add_argument('--no-follow', '-N', action='store_true',
+            help='Do not follow real-time logs')
+    dlogs.add_argument('--lines', '-n', type=int, metavar='N',
+            help='Tail only N logs (before following real-time logs by default)')
 
-#    logs_deploy.add_argument('--build', action='store_true',
+#    dlogs.add_argument('--build', action='store_true',
 #            help='Retrieve only build logs.')
-#    logs_deploy.add_argument('--install', action='store_true',
+#    dlogs.add_argument('--install', action='store_true',
 #            help='Retrieve only install logs.')
 
-    logs_deploy.add_argument('--no-follow', '-N', action='store_true',
-            help='Do not follow real-time logs')
-    logs_deploy.add_argument('--lines', '-n', type=int, metavar='N',
-            help='Tail only N logs (before following real-time logs by default)')
-#    logs_deploy.add_argument('--head', '-H', type=int, metavar='N',
+#    dlogs.add_argument('--head', '-H', type=int, metavar='N',
 #            help='Display the first N logs.'
 #            ' Wait after real-time logs if needed.'
 #            ' If --no-follow, display up to N recorded logs')
 
-#    logs_deploy.add_argument('--from', metavar='DATE',
+#    dlogs.add_argument('--from', metavar='DATE',
 #            help='Start from DATE. DATE Can be XXX define format XXX'
 #            ' or a negative value from now (ex: -1h)')
-#    logs_deploy.add_argument('--to', metavar='DATE',
+#    dlogs.add_argument('--to', metavar='DATE',
 #            help='End at DATE. Same format as --from.'
 #            ' If --no-follow, display up to DATE'
 #            )
 
-    logs_app = logs.add_parser('app', help='Watch your application in live',
+    logs = subcmd.add_parser('logs', help='Watch your application logs in live',
             parents=[common_parser])
 
-    service_or_instance = logs_app.add_mutually_exclusive_group()
+    service_or_instance = logs.add_mutually_exclusive_group()
     service_or_instance.add_argument('service', nargs='?',
             help='Filter logs upon a given service (ex: www).')
     service_or_instance.add_argument('instance', nargs='?',
             help='Filter logs upon a given service instance (ex: www.0).')
 
-    logs_app.add_argument('--no-follow', '-N', action='store_true',
+    logs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
-    logs_app.add_argument('--lines', '-n', type=int, metavar='N',
+    logs.add_argument('--lines', '-n', type=int, metavar='N',
             help='Tail only N logs (before following real-time logs by default)')
 
 
