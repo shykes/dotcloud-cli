@@ -715,11 +715,15 @@ class CLI(object):
             self.die('Unable to spawn rsync')
 
     def deploy(self, application, clean=False, revision=None):
-        self.info('Deploying {0}'.format(application))
-        url = '/applications/{0}/revision'.format(application)
-        response = self.user.put(url, {'revision': revision, 'clean': clean})
+        self.info('Submitting a deployment request for revision {0} of application {1}'.format(
+            revision if revision else 'latest', application))
+        url = '/applications/{0}/deployments'.format(application)
+        response = self.user.post(url, {'revision': revision, 'clean': clean})
         deploy_trace_id = response.trace_id
         deploy_id = response.item['deploy_id']
+        self.info('Deployment of revision {c.bright}{0}{c.reset}' \
+                ' scheduled for {1}'.format(
+            response.item.get('revision'), application, c=self.colors))
 
         try:
             res = self._stream_deploy_logs(application, deploy_id,
