@@ -9,17 +9,21 @@ from .errors import RESTAPIError, AuthenticationNotConfigured
 
 
 class RESTClient(object):
-    def __init__(self, endpoint='https://api-experimental.dotcloud.com/v1', debug=False):
+    def __init__(self, endpoint='https://api-experimental.dotcloud.com/v1',
+            debug=False, user_agent=None, version_checker=None):
         self.endpoint = endpoint
         self.debug = debug
         self.authenticator = NullAuth()
         self._make_session()
+        self._user_agent = user_agent
+        self._version_checker = version_checker
 
     def make_prefix_client(self, prefix=''):
         subclient = RESTClient(
                 endpoint='{endpoint}{prefix}'.format(
                     endpoint=self.endpoint, prefix=prefix),
-                debug=self.debug)
+                debug=self.debug, user_agent=self._user_agent,
+                version_checker=self._version_checker)
         subclient.session = self.session
         return subclient
 
@@ -34,6 +38,8 @@ class RESTClient(object):
             verify=True)
 
     def _pre_request_hook(self, request):
+        if self._user_agent:
+            request.headers['User-Agent'] = self._user_agent
         r = self.authenticator.pre_request_hook(request)
         if self.debug:
             print >>sys.stderr, '### {method} {url} data={data}'.format(
@@ -98,5 +104,10 @@ class RESTClient(object):
             data = json.loads(res.text)
             raise RESTAPIError(code=res.status_code,
                 desc=data['error']['description'], trace_id=trace_id)
+
+        if self._version_checker:
+            self._version_checker(res.headers.get('X-DOTCLOUD-CLI-VERSION-MIN'),
+                    res.headers.get('X-DOTCLOUD-CLI-VERSION-CUR'))
+
         return BaseResponse.create(res=res, trace_id=trace_id,
                 streaming=streaming)

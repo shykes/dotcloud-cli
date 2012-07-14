@@ -30,7 +30,10 @@ class CLI(object):
     __version__ = VERSION
     def __init__(self, debug=False, colors=None, endpoint=None, username=None):
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
-        self.client = RESTClient(endpoint=endpoint, debug=debug)
+        self._version_checked = False
+        self.client = RESTClient(endpoint=endpoint, debug=debug,
+                user_agent='dotcloud-cli/{0}'.format(self.__version__),
+                version_checker=self._check_version)
         self.debug = debug
         self.colors = Colors(colors)
         self.error_handlers = {
@@ -98,6 +101,51 @@ class CLI(object):
             pass
         except urllib2.URLError as e:
             self.error('Accessing dotCloud API failed: {0}'.format(str(e)))
+
+    def _parse_version(self, s):
+        if not s:
+            return None
+        parts = s.split('.')
+        if not parts:
+            return None
+        for x in xrange(3-len(parts)):
+            parts.append('0')
+        return parts[0:3]
+
+    def _is_version_gte(self, a, b):
+        for p1, p2 in zip(a, b):
+            if p1 > p2:
+                return True
+            elif p1 < p2:
+                return False
+        return True
+
+    def _check_version(self, version_min_s, version_cur_s):
+        if self._version_checked:
+            return  # check only one time per run of the CLI
+        self._version_checked = True
+        version_min = self._parse_version(version_min_s)
+        version_cur = self._parse_version(version_cur_s)
+        if version_min is None or version_cur is None:
+            return
+        version_local = self._parse_version(self.__version__)
+
+        if not self._is_version_gte(version_local, version_min):
+            # always warn when it is really too old.
+            self.warning('Your version ({0}) of the cli is really too ' \
+                    'old, you are asking for troubles.'.format(self.__version__,
+                        version_min_s))
+        last_version_check = self.global_config.get('last_version_check', None)
+
+        if last_version_check and last_version_check > time.time() \
+                - (60 * 60 * 2):  # inform the user of the new version every 2h
+            return
+        self.global_config.data['last_version_check'] = time.time()
+        self.global_config.save()
+
+        if not self._is_version_gte(version_local, version_cur):
+            self.info('A newer version ({0}) of the CLI is available ' \
+                    '(upgrade with: pip install -U {1})'.format(version_cur_s, self.cmd))
 
     def ensure_app_local(self, args):
         if args.application is None:
@@ -228,7 +276,6 @@ class CLI(object):
                 '{c.bright}{username}{c.reset}' \
                 .format(username=res.item['username'], c=self.colors))
         except Exception:
-            raise
             self.die('Authentication failed. Run `{cmd} setup` to redo the authentication'.format(cmd=self.cmd))
         self.get_keys()
 
