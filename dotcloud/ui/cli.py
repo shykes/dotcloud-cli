@@ -762,8 +762,12 @@ class CLI(object):
             self.die('Unable to spawn rsync')
 
     def deploy(self, application, clean=False, revision=None):
-        self.info('Submitting a deployment request for revision {0} of application {1}'.format(
-            revision if revision else 'latest', application))
+        if revision is not None:
+            self.info('Submitting a deployment request for revision {0} of application {1}'.format(
+                revision, application))
+        else:
+            self.info('Submitting a deployment request for application {0}'.format(
+                application))
         url = '/applications/{0}/deployments'.format(application)
         response = self.user.post(url, {'revision': revision, 'clean': clean})
         deploy_trace_id = response.trace_id
@@ -1109,7 +1113,7 @@ class CLI(object):
 
     @app_local
     def cmd_revisions(self, args):
-        self.info('Versions for application {0}'.format(args.application))
+        self.info('Revisions for application {0}:'.format(args.application))
         url = '/applications/{0}/revisions'.format(
                 args.application)
         versions = [x['revision'] for x in self.user.get(url).items]
