@@ -202,7 +202,7 @@ def get_parser(name='dotcloud'):
 #            ' If --no-follow, display up to DATE'
 #            )
 
-    logs = subcmd.add_parser('logs', help='Watch your application logs in live',
+    logs = subcmd.add_parser('logs', help='Watch your application logs live',
             parents=[common_parser])
 
     service_or_instance = logs.add_mutually_exclusive_group()
@@ -248,7 +248,7 @@ def get_parser(name='dotcloud'):
                        type=ScaleOperation)
 
     restart = subcmd.add_parser('restart',
-            help='Restart a service\'s instance',
+            help='Restart a service instance',
             parents=[common_parser])
     restart.add_argument('service_or_instance',
             help='Restart the first instance of a ' \

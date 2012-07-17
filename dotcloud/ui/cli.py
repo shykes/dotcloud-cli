@@ -133,7 +133,7 @@ class CLI(object):
         if not self._is_version_gte(version_local, version_min):
             # always warn when it is really too old.
             self.warning('Your version ({0}) of the cli is really too ' \
-                    'old, you are asking for troubles.'.format(self.__version__,
+                    'old, you are asking for trouble.'.format(self.__version__,
                         version_min_s))
         last_version_check = self.global_config.get('last_version_check', None)
 
@@ -524,7 +524,7 @@ class CLI(object):
         res = self.user.get(url)
 
         if not res.items:
-            self.warning('It seems you haven\'t deployed your application.')
+            self.warning('It looks like you haven\'t deployed your application.')
             self.warning('Run {0} push to deploy and see the information about your stack. '.format(self.cmd))
             return
 
@@ -1058,7 +1058,7 @@ class CLI(object):
         self.error('The connection was lost, ' \
                 'but the deployment is still running in the background.')
         if deploy_trace_id is not None:
-            self.error('If this message happen too often, please e-mail\n' \
+            self.error('If this message happens too often, please e-mail\n' \
                     'support@dotcloud.com and mention this trace ID: {0}'
                 .format(deploy_trace_id))
         self.error('if you want to continue following your deployment, ' \
