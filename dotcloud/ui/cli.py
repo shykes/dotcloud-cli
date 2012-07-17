@@ -329,15 +329,21 @@ class CLI(object):
                 print '  ' + app['name']
 
     def cmd_create(self, args):
-        self.info('Creating a new application called "{0}"'.format(args.application))
+        self.info('Creating a {c.bright}{flavor}{c.reset} application named "{name}"'.format(
+            flavor=args.flavor,
+            name=args.application,
+            c=self.colors))
         url = '/applications'
         try:
-            self.user.post(url, { 'name': args.application })
+            self.user.post(url, {
+                'name': args.application,
+                'flavor': args.flavor
+                })
         except RESTAPIError as e:
             if e.code == 409:
                 self.die('Application "{0}" already exists.'.format(args.application))
             else:
-                self.die('Creating app "{0}" failed: {1}'.format(args.application, e))
+                self.die('Creating application "{0}" failed: {1}'.format(args.application, e))
         self.success('Application "{0}" created.'.format(args.application))
         if self.confirm('Connect the current directory to "{0}"?'.format(args.application), 'y'):
             self._connect(args)

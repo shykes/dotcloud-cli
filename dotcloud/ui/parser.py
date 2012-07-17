@@ -84,6 +84,8 @@ def get_parser(name='dotcloud'):
 
     create = subcmd.add_parser('create', help='Create a new application',
             parents=[connect_options_parser])
+    create.add_argument('--flavor', '-f', default='sandbox',
+            help='Choose a flavor for your application. Defaults to sandbox.')
     create.add_argument('application', help='specify the application')
 
     conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app',
