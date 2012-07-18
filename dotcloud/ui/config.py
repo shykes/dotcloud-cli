@@ -11,7 +11,7 @@ class GlobalConfig(object):
     def __init__(self):
         self.dir = os.path.expanduser('~/.dotcloud2')
         self.path = self.path_to('config')
-        self.key = self.path_to('dotcloud.key')
+        self.key = self.path_to(os.environ.get('DOTCLOUD_KEYFILE') or 'dotcloud.key')
         self.load()
 
     def path_to(self, name):
