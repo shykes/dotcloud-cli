@@ -1083,7 +1083,7 @@ class CLI(object):
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
-        follow = not args.no_follow if filter_svc is None else False
+        follow = not args.no_follow if (filter_svc is None and args.lines > 0) else False
         return self._stream_deploy_logs(args.application, did=args.d,
                 filter_svc=filter_svc, filter_inst=filter_inst,
                 follow=follow, lines=args.lines)
