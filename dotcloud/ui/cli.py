@@ -878,6 +878,8 @@ class CLI(object):
             '-p', str(ssh_endpoint['port']),
             ssh_endpoint['host']
         ]
+        if os.isatty(sys.stdin.fileno()):
+            ssh_args.append('-t')
         if cmd_args:
             ssh_args.append('--')
             ssh_args.extend(cmd_args)
