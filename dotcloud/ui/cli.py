@@ -1124,8 +1124,13 @@ class CLI(object):
                 args.application)
         versions = [x['revision'] for x in self.user.get(url).items]
 
-        url = '/applications/{0}/revision'.format(args.application)
-        revision = self.user.get(url).item['revision']
+        try:
+            url = '/applications/{0}/revision'.format(args.application)
+            revision = self.user.get(url).item['revision']
+        except RESTAPIError as e:
+            if e.code != 404:
+                raise
+            revision = None
 
         for version in versions:
             if revision == version:
