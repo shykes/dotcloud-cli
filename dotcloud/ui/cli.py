@@ -133,7 +133,7 @@ class CLI(object):
         if not self._is_version_gte(version_local, version_min):
             # always warn when it is really too old.
             self.warning('Your version ({0}) of the cli is really too ' \
-                    'old, you are asking for trouble.'.format(self.__version__,
+                    'old, you are looking for troubles.'.format(self.__version__,
                         version_min_s))
         last_version_check = self.global_config.get('last_version_check', None)
 
@@ -664,7 +664,7 @@ class CLI(object):
         endpoint = self._select_endpoint(self.user.get(url).items, protocol)
 
         path = os.path.join(os.path.relpath(args.path or
-            self.local_config_root), '')
+            getattr(self, 'local_config_root', '.')), '')
         if commit or branch:
             self.info('Pushing code with {0}'
                     ', {1} {c.bright}{2}{c.reset} from "{3}" to application {4}'.format(
@@ -747,7 +747,7 @@ class CLI(object):
         return ref.strip().split('/')[-1]
 
     def push_with_rsync(self, args, rsync_endpoint):
-        local_dir = args.path or self.local_config_root
+        local_dir = args.path or getattr(self, 'local_config_root', '.')
         if not local_dir.endswith('/'):
             local_dir += '/'
         url = self.parse_url(rsync_endpoint)
