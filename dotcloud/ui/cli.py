@@ -51,6 +51,8 @@ class CLI(object):
                 .format(username=username, c=self.colors))
             self.user = self.client.make_prefix_client('/users/{username}' \
                     .format(username=username))
+            self.global_config.key = \
+                    self.global_config.path_to('user_{0}.key'.format(username))
         else:
             self.user = self.client.make_prefix_client('/me')
         self.cmd = os.path.basename(sys.argv[0])
