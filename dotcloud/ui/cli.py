@@ -988,46 +988,53 @@ class CLI(object):
     def _stream_formated_logs(self, url, filter_svc=None, filter_inst=None):
         response = self.user.get(url, streaming=True)
         meta = response.item
-        last_ts = None
-        for log in response.items:
-            raw_ts = log.get('created_at')
-            if raw_ts is not None:
-                ts = self.iso_dtime_local(log['created_at'])
-                if last_ts is None or (last_ts.day != ts.day
-                        or last_ts.month != ts.month
-                        or last_ts.year != ts.year
-                        ):
-                    print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
-                            meta['application'], meta['deploy_id'])
-                last_ts = ts
-                line = '{0}: '.format(ts.time())
-            else:
-                line = ''
+        def _iterator():
+            last_ts = None
+            try:
+                for log in response.items:
+                    raw_ts = log.get('created_at')
+                    if raw_ts is not None:
+                        ts = self.iso_dtime_local(log['created_at'])
+                        if last_ts is None or (last_ts.day != ts.day
+                                or last_ts.month != ts.month
+                                or last_ts.year != ts.year
+                                ):
+                            print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
+                                    meta['application'], meta['deploy_id'])
+                        last_ts = ts
+                        line = '{0}: '.format(ts.time())
+                    else:
+                        line = ''
 
-            tags = ''
-            svc = log.get('service')
-            inst = log.get('instance')
+                    tags = ''
+                    svc = log.get('service')
+                    inst = log.get('instance')
 
-            if filter_svc:
-                if filter_svc != svc:
-                    continue
-                if (filter_inst is not None and inst is not None
-                        and filter_inst != int(inst)):
-                    continue
+                    if filter_svc:
+                        if filter_svc != svc:
+                            continue
+                        if (filter_inst is not None and inst is not None
+                                and filter_inst != int(inst)):
+                            continue
 
-            if svc is not None:
-                if inst is not None:
-                    tags = '[{0}.{1}] '.format(svc, inst)
-                else:
-                    tags = '[{0}] '.format(svc)
-            else:
-                tags = '--> '
+                    if svc is not None:
+                        if inst is not None:
+                            tags = '[{0}.{1}] '.format(svc, inst)
+                        else:
+                            tags = '[{0}] '.format(svc)
+                    else:
+                        tags = '--> '
 
-            line += '{0}{1}'.format(tags, log['message'])
-            if log.get('level') == 'ERROR':
-                line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
+                    line += '{0}{1}'.format(tags, log['message'])
+                    if log.get('level') == 'ERROR':
+                        line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
 
-            yield log, line
+                    yield log, line
+            except RESTAPIError:
+                raise
+            except Exception:
+                return
+        return meta, _iterator()
 
     def _stream_deploy_logs(self, app, did=None, filter_svc=None,
             filter_inst=None, deploy_trace_id=None, follow=False, lines=None):
@@ -1040,8 +1047,8 @@ class CLI(object):
         if lines is not None:
             url += '&lines={0}'.format(lines)
 
-        for log, formated_line, in self._stream_formated_logs(url, filter_svc,
-                filter_inst):
+        logs_meta, logs = self._stream_formated_logs(url, filter_svc, filter_inst)
+        for log, formated_line in logs:
 
             if log.get('partial', False):
                 print formated_line, '\r',
@@ -1067,7 +1074,8 @@ class CLI(object):
                 .format(deploy_trace_id))
         self.error('if you want to continue following your deployment, ' \
                 'try:\n{0}'.format(
-                    self._fmt_deploy_logs_command(did)))
+                    self._fmt_deploy_logs_command(logs_meta.get('deploy_id',
+                        did))))
         self.die()
 
     def _fmt_deploy_logs_command(self, deploy_id):
@@ -1113,9 +1121,9 @@ class CLI(object):
             if filter_inst is not None:
                 url += '&instance={0}'.format(filter_inst)
 
-        for log, formated_line, in self._stream_formated_logs(url, filter_svc,
-                filter_inst):
-
+        logs_meta, logs = self._stream_formated_logs(url, filter_svc,
+                filter_inst)
+        for log, formated_line, in logs:
             if log.get('partial', False):
                 print formated_line, '\r',
                 sys.stdout.flush()
