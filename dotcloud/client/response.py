@@ -1,5 +1,17 @@
 import json
 
+def bytes_to_lines(stream):
+    """Reads single bytes from stream, emits lines.
+    
+       This hack makes me sick, but requests makes this impossible
+       to do reliably, otherwise."""
+    line = ""
+    for byte in stream:
+        line += byte
+        if byte == "\n":
+            yield line
+            line = ""
+
 class BaseResponse(object):
     def __init__(self, obj=None):
         self.obj = obj
@@ -9,7 +21,7 @@ class BaseResponse(object):
         resp = None
 
         if streaming:
-            stream = res.iter_lines()
+            stream = bytes_to_lines(res.iter_content(chunk_size=1))
             first_line = next(stream)
             data = json.loads(first_line)
         else:
@@ -18,7 +30,7 @@ class BaseResponse(object):
             else:
                 data = None
         if streaming:
-            resp = StreamResponse(obj=data['object'], stream=stream)
+            resp = StreamingJsonObjectResponse(obj=data['object'], stream=stream)
         elif data and 'object' in data:
             resp = ItemResponse(obj=data['object'])
         elif data and 'objects' in data:
@@ -63,7 +75,7 @@ class NoItemResponse(BaseResponse):
     def item(self):
         return None
 
-class StreamResponse(BaseResponse):
+class StreamingJsonObjectResponse(BaseResponse):
     def __init__(self, obj, stream):
         BaseResponse.__init__(self, obj)
         self._stream = stream
