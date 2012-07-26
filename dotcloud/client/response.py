@@ -8,7 +8,7 @@ def bytes_to_lines(stream):
     line = ""
     for byte in stream:
         line += byte
-        if byte == "\n":
+        if line.endswith("\r\n"):
             yield line
             line = ""
 
