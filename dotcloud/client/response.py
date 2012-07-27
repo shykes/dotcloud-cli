@@ -1,4 +1,5 @@
 import json
+import httplib  # only for exception
 
 def bytes_to_lines(stream):
     """Reads single bytes from stream, emits lines.
@@ -83,8 +84,13 @@ class StreamingJsonObjectResponse(BaseResponse):
     @property
     def items(self):
         def stream():
-            for line in self._stream:
-                yield json.loads(line)['object']
+            try:
+                for line in self._stream:
+                    line = line.rstrip()
+                    if line:  # ignore empty lines (keep-alive)
+                        yield json.loads(line)['object']
+            except httplib.HTTPException:
+                pass  # simply ignore when the connection is dropped
         return stream()
 
     @property

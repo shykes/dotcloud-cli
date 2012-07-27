@@ -990,50 +990,45 @@ class CLI(object):
         meta = response.item
         def _iterator():
             last_ts = None
-            try:
-                for log in response.items:
-                    raw_ts = log.get('created_at')
-                    if raw_ts is not None:
-                        ts = self.iso_dtime_local(log['created_at'])
-                        if last_ts is None or (last_ts.day != ts.day
-                                or last_ts.month != ts.month
-                                or last_ts.year != ts.year
-                                ):
-                            print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
-                                    meta['application'], meta['deploy_id'])
-                        last_ts = ts
-                        line = '{0}: '.format(ts.time())
+            for log in response.items:
+                raw_ts = log.get('created_at')
+                if raw_ts is not None:
+                    ts = self.iso_dtime_local(log['created_at'])
+                    if last_ts is None or (last_ts.day != ts.day
+                            or last_ts.month != ts.month
+                            or last_ts.year != ts.year
+                            ):
+                        print '- {0} ({1} deployment, deploy_id={2})'.format(ts.date(),
+                                meta['application'], meta['deploy_id'])
+                    last_ts = ts
+                    line = '{0}: '.format(ts.time())
+                else:
+                    line = ''
+
+                tags = ''
+                svc = log.get('service')
+                inst = log.get('instance')
+
+                if filter_svc:
+                    if filter_svc != svc:
+                        continue
+                    if (filter_inst is not None and inst is not None
+                            and filter_inst != int(inst)):
+                        continue
+
+                if svc is not None:
+                    if inst is not None:
+                        tags = '[{0}.{1}] '.format(svc, inst)
                     else:
-                        line = ''
+                        tags = '[{0}] '.format(svc)
+                else:
+                    tags = '--> '
 
-                    tags = ''
-                    svc = log.get('service')
-                    inst = log.get('instance')
+                line += '{0}{1}'.format(tags, log['message'])
+                if log.get('level') == 'ERROR':
+                    line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
 
-                    if filter_svc:
-                        if filter_svc != svc:
-                            continue
-                        if (filter_inst is not None and inst is not None
-                                and filter_inst != int(inst)):
-                            continue
-
-                    if svc is not None:
-                        if inst is not None:
-                            tags = '[{0}.{1}] '.format(svc, inst)
-                        else:
-                            tags = '[{0}] '.format(svc)
-                    else:
-                        tags = '--> '
-
-                    line += '{0}{1}'.format(tags, log['message'])
-                    if log.get('level') == 'ERROR':
-                        line = '{c.red}{0}{c.reset}'.format(line, c=self.colors)
-
-                    yield log, line
-            except RESTAPIError:
-                raise
-            except Exception:
-                return
+                yield log, line
         return meta, _iterator()
 
     def _stream_deploy_logs(self, app, did=None, filter_svc=None,
