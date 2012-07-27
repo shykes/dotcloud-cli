@@ -13,7 +13,7 @@ class Parser(argparse.ArgumentParser):
 
 class ScaleOperation(object):
     def __init__(self, kv):
-        if kv.count('=') != 1:
+        if kv.startswith('=') or kv.count('=') != 1:
             raise argparse.ArgumentTypeError('Invalid action "{0}"'.format(kv))
         (k, v) = kv.split('=')
         if not v:
@@ -61,11 +61,10 @@ def validate_var(kv):
 
 
 def get_parser(name='dotcloud'):
-
     # The common parser is used as a parent for all sub-commands so that
     # they all share --application
     common_parser = Parser(prog=name, add_help=False)
-    common_parser.add_argument('--application', '-a', help='specify the application')
+    common_parser.add_argument('--application', '-a', help='Specify the application')
 
     # The "connect" and "create" share some options, as "create" will
     # offer to connect the current directory to the new application.
@@ -95,23 +94,24 @@ def get_parser(name='dotcloud'):
     subcmd.add_parser('check', help='Check the installation and authentication')
 
     # dotcloud list
-    subcmd.add_parser('list', help='list applications')
+    subcmd.add_parser('list', help='List all applications')
 
     # dotcloud connect
     connect = subcmd.add_parser('connect',
             help='Connect a local directory to an existing application',
             parents=[connect_options_parser])
-    connect.add_argument('application', help='specify the application')
+    connect.add_argument('application', help='Specify the application')
 
     # dotcloud disconnect
-    subcmd.add_parser('disconnect', help='Disconnect the current directory from dotCloud app')
+    subcmd.add_parser('disconnect',
+            help='Disconnect the current directory from its application')
 
     # dotcloud create
     create = subcmd.add_parser('create', help='Create a new application',
             parents=[connect_options_parser])
     create.add_argument('--flavor', '-f', default='sandbox',
             help='Choose a flavor for your application. Defaults to sandbox.')
-    create.add_argument('application', help='specify the application')
+    create.add_argument('application', help='Specify the application')
 
     # dotcloud destroy
     destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
@@ -120,10 +120,10 @@ def get_parser(name='dotcloud'):
 
     # dotcloud app
     subcmd.add_parser('app',
-            help='Show the application name linked to the current directory')
+            help='Display the application name connected to the current directory')
 
     # dotcloud activity
-    activity = subcmd.add_parser('activity', help='Your recent activity',
+    activity = subcmd.add_parser('activity', help='Display your recent activity',
             parents=[common_parser])
     activity.add_argument('--all' ,'-A', action='store_true',
             help='Print out your activities among all your applications rather than the '
@@ -131,12 +131,12 @@ def get_parser(name='dotcloud'):
                  'not connected to any application.)')
 
     # dotcloud info
-    info = subcmd.add_parser('info', help='Get information about the application',
+    info = subcmd.add_parser('info', help='Get information about the application or service',
             parents=[common_parser])
     info.add_argument('service', nargs='?', help='Specify the service')
 
     # dotcloud url
-    url = subcmd.add_parser('url', help='Show URL for the application',
+    url = subcmd.add_parser('url', help='Display the URL(s) for the application',
             parents=[common_parser])
     url.add_argument('service', nargs='?', help='Specify the service')
 
@@ -145,7 +145,7 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     open_.add_argument('service', nargs='?', help='Specify the service')
 
-    # Run (ssh)
+    # dotcloud run service ...
     run = subcmd.add_parser('run',
             help='Open a shell or run a command inside a service instance',
             parents=[common_parser])
@@ -170,13 +170,13 @@ def get_parser(name='dotcloud'):
     rsync_or_dvcs.add_argument('--hg', action='store_true', help='Use mercurial to push')
     branch_or_commit = push.add_mutually_exclusive_group()
     branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
-            help='Specify the branch to push when pushing via dvcs '
+            help='Specify the branch to push when pushing via DVCS '
                  '(by default, use the active one)')
     branch_or_commit.add_argument('--commit', '-c', metavar='HASH',
-            help='Specify the commit hash to push when pushing via dvcs '
+            help='Specify the commit hash to push when pushing via DVCS '
                  '(by default, use the latest one)')
 
-    # dotcloud deploy
+    # dotcloud deploy revision
     deploy = subcmd.add_parser('deploy', help='Deploy a specific version',
             parents=[common_parser])
     deploy.add_argument('revision',
@@ -187,11 +187,11 @@ def get_parser(name='dotcloud'):
     # dotcloud dlist
     subcmd.add_parser('dlist', help='List recent deployments', parents=[common_parser])
 
-    # dotcloud dlogs
+    # dotcloud dlogs deployment
     dlogs = subcmd.add_parser('dlogs', help='Review past deployments or watch one in-flight',
             parents=[common_parser])
     dlogs.add_argument('deployment_id',
-            help='Which recorded deployment to look at (discoverable with the command, '
+            help='Which recorded deployment to view (discoverable with the command, '
                  '"dotcloud dlist") or "latest".')
     dlogs.add_argument('service_or_instance', nargs='?',
             help='Filter logs by a given service (ex: www) or a specific instance (ex: www.0). ')
@@ -237,12 +237,12 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     var_set.add_argument('values', help='Application variables to set',
             metavar='key=value', nargs='+', type=validate_var)
-    var_unset = var.add_parser('unset', help='Unset application variables',
+    var_unset = var.add_parser('unset', help='Unset (remove) application variables',
             parents=[common_parser])
     var_unset.add_argument('variables', help='Application variables to unset',
             metavar='var', nargs='+')
 
-    # dotcloud scale
+    # dotcloud scale foo=3 bar:memory=128M
     scale = subcmd.add_parser('scale', help='Scale services',
             description='Manage horizontal (instances) or vertical (memory) scaling of services',
             parents=[common_parser])
@@ -250,7 +250,7 @@ def get_parser(name='dotcloud'):
                        help='Scaling action to perform e.g. www:instances=2 or www:memory=1gb',
                        type=ScaleOperation)
 
-    # dotcloud restart foo
+    # dotcloud restart foo.0
     restart = subcmd.add_parser('restart', help='Restart a service instance',
             parents=[common_parser])
     restart.add_argument('instance',
@@ -266,7 +266,7 @@ def get_parser(name='dotcloud'):
     domain_add.add_argument('domain', help='New domain name')
     domain_rm = domain.add_parser('rm', help='Remove a domain', parents=[common_parser])
     domain_rm.add_argument('service', help='Service to remove the domain from')
-    domain_rm.add_argument('domain', help='domain name to remove')
+    domain_rm.add_argument('domain', help='Domain name to remove')
 
     # dotcloud revisions
     revisions = subcmd.add_parser('revisions',

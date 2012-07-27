@@ -527,7 +527,8 @@ class CLI(object):
 
         if not res.items:
             self.warning('It looks like you haven\'t deployed your application.')
-            self.warning('Run {0} push to deploy and see the information about your stack. '.format(self.cmd))
+            self.warning('Run {0} push to deploy and see the information about your stack.'.
+                         format(self.cmd))
             return
 
         for service in res.items:
@@ -827,7 +828,7 @@ class CLI(object):
         if '.' in service_or_instance:
             service_name, instance_id = service_or_instance.split('.', 1)
             if not (service_name and instance_id):
-                self.die('Service instances must be formed, e.g., "www.0"')
+                self.die('Service instances must be formed like, "www.0"')
             try:
                 instance_id = int(instance_id)
                 if instance_id < 0:
