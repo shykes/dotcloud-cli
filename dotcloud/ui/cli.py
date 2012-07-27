@@ -460,7 +460,7 @@ class CLI(object):
                 ', '.join(args.values), args.application))
             patch = {}
             for pair in args.values:
-                key, val = pair.split('=')
+                key, val = pair.split('=', 1)
                 patch[key] = val
             self.user.patch(url, patch)
             deploy = True
