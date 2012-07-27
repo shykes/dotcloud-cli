@@ -1085,15 +1085,15 @@ class CLI(object):
     def cmd_dlogs(self, args):
         filter_svc = None
         filter_inst = None
-        if args.service:
-            parts = args.service.split('.')
+        if args.service_or_instance:
+            parts = args.service_or_instance.split('.')
             filter_svc = parts[0]
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
         follow = not args.no_follow if (filter_svc is None and (args.lines is
             None or args.lines > 0)) else False
-        return self._stream_deploy_logs(args.application, did=args.d,
+        return self._stream_deploy_logs(args.application, did=args.deployment_id,
                 filter_svc=filter_svc, filter_inst=filter_inst,
                 follow=follow, lines=args.lines)
 
