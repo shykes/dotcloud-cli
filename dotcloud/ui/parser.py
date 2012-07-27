@@ -67,12 +67,6 @@ def get_parser(name='dotcloud'):
     common_parser = Parser(prog=name, add_help=False)
     common_parser.add_argument('--application', '-a', help='specify the application')
 
-    parser = Parser(prog=name, description='dotcloud CLI',
-            parents=[common_parser])
-    parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
-
-    subcmd = parser.add_subparsers(dest='cmd')
-
     # The "connect" and "create" share some options, as "create" will
     # offer to connect the current directory to the new application.
     connect_options_parser = Parser(prog=name, add_help=False)
@@ -83,6 +77,13 @@ def get_parser(name='dotcloud'):
             help='Always use git to push')
     rsync_or_dvcs.add_argument('--hg', action='store_true',
             help='Always use mercurial to push')
+
+    # Define all of the commands...
+    parser = Parser(prog=name, description='dotcloud CLI',
+            parents=[common_parser])
+    parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
+
+    subcmd = parser.add_subparsers(dest='cmd')
 
     # dotcloud setup
     subcmd.add_parser('setup', help='Setup the client authentication')
@@ -185,7 +186,7 @@ def get_parser(name='dotcloud'):
             help='If a build is needed, do a full build (rather than incremental)')
 
     # dotcloud dlist
-    dlist = subcmd.add_parser('dlist', help='List recent deployments', parents=[common_parser])
+    subcmd.add_parser('dlist', help='List recent deployments', parents=[common_parser])
 
     # dotcloud dlogs
     dlogs = subcmd.add_parser('dlogs', help='Review past deployments or watch one in-flight',
@@ -193,8 +194,7 @@ def get_parser(name='dotcloud'):
     dlogs.add_argument('deployment_id',
             help='Which recorded deployment to look at (discoverable with the command, '
                  '"dotcloud dlist") or "latest".')
-    service_or_instance = dlogs.add_mutually_exclusive_group()
-    service_or_instance.add_argument('service_or_instance', nargs='?',
+    dlogs.add_argument('service_or_instance', nargs='?',
             help='Filter logs by a given service (ex: www) or a specific instance (ex: www.0). ')
     dlogs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
@@ -223,8 +223,7 @@ def get_parser(name='dotcloud'):
     logs = subcmd.add_parser('logs', help='View your application logs or watch logs live',
             parents=[common_parser])
     logs.add_argument('service_or_instance',
-            help='Fetch logs from the given service (ex: www) '
-                 'or a specific instance (ex: www.1)')
+            help='Fetch logs from the given service (ex: www) or a specific instance (ex: www.1)')
     logs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
     logs.add_argument('--lines', '-n', type=int, metavar='N',
@@ -253,29 +252,22 @@ def get_parser(name='dotcloud'):
                        type=ScaleOperation)
 
     # dotcloud restart foo
-    restart = subcmd.add_parser('restart',
-            help='Restart a service instance',
+    restart = subcmd.add_parser('restart', help='Restart a service instance',
             parents=[common_parser])
-    restart.add_argument('service_or_instance',
-            help='Restart the first instance of a '
-                 'given service (ex: www) or a specific one (ex: www.1)')
+    restart.add_argument('instance',
+            help='Restart the first instance of a given service (ex: www) or '
+                 'a specific one (ex: www.1)')
 
     # dotcloud domain <list/add/rm> service domain
     domain = subcmd.add_parser('domain', help='Manage domains for the service',
             parents=[common_parser]).add_subparsers(dest='subcmd')
-    domain_list = domain.add_parser('list', help='List the domains', parents=[common_parser])
+    domain.add_parser('list', help='List the domains', parents=[common_parser])
     domain_add = domain.add_parser('add', help='Add a new domain', parents=[common_parser])
     domain_add.add_argument('service', help='Service to set domain for')
     domain_add.add_argument('domain', help='New domain name')
     domain_rm = domain.add_parser('rm', help='Remove a domain', parents=[common_parser])
     domain_rm.add_argument('service', help='Service to remove the domain from')
     domain_rm.add_argument('domain', help='domain name to remove')
-
-    # dotcloud service
-    service = subcmd.add_parser('service', help='Manage services',
-            parents=[common_parser]).add_subparsers(dest='subcmd')
-    service_list = service.add_parser('list', help='List the services',
-            parents=[common_parser])
 
     # dotcloud revisions
     revisions = subcmd.add_parser('revisions',

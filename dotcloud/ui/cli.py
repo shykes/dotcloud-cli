@@ -823,9 +823,11 @@ class CLI(object):
             s = s.replace(c, '\\' + c)
         return s
 
-    def parse_service_instance(self, args):
-        if '.' in args.service_or_instance:
-            service_name, instance_id = args.service_or_instance.split('.', 2)
+    def parse_service_instance(self, service_or_instance):
+        if '.' in service_or_instance:
+            service_name, instance_id = service_or_instance.split('.', 1)
+            if not (service_name and instance_id):
+                self.die('Service instances must be formed, e.g., "www.0"')
             try:
                 instance_id = int(instance_id)
                 if instance_id < 0:
@@ -834,12 +836,12 @@ class CLI(object):
                 self.die('Unable to parse instance number: {0}'.format(e))
 
         else:
-            service_name = args.service_or_instance
+            service_name = service_or_instance
             instance_id = 0
         return service_name, instance_id
 
     def get_ssh_endpoint(self, args):
-        service_name, instance_id = self.parse_service_instance(args)
+        service_name, instance_id = self.parse_service_instance(args.service_or_instance)
 
         url = '/applications/{0}/services/{1}'.format(args.application,
                 service_name)
@@ -909,7 +911,9 @@ class CLI(object):
 
     @app_local
     def cmd_restart(self, args):
-        service_name, instance_id = self.parse_service_instance(args)
+        if args.instance.find('.') in (-1, 0):
+            self.die('You must specify a service and instance, e.g. "www.0"')
+        service_name, instance_id = self.parse_service_instance(args.instance)
 
         url = '/applications/{0}/services/{1}/restart?instance={2}' \
             .format(args.application, service_name, instance_id)
