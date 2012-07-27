@@ -77,6 +77,9 @@ def get_parser(name='dotcloud'):
             help='Always use git to push')
     rsync_or_dvcs.add_argument('--hg', action='store_true',
             help='Always use mercurial to push')
+    connect_options_parser.add_argument('--branch', '-b', metavar='NAME',
+            help='Always use this branch when pushing via DVCS. '
+                 '(If not set, each push will use the active branch by default)')
 
     # Define all of the commands...
     parser = Parser(prog=name, description='dotcloud CLI',
@@ -95,9 +98,10 @@ def get_parser(name='dotcloud'):
     subcmd.add_parser('list', help='list applications')
 
     # dotcloud connect
-    connect_options_parser.add_argument('--branch', '-b', metavar='NAME',
-            help='Always use this branch when pushing via DVCS. '
-                 '(If not set, each push will use the active branch by default)')
+    connect = subcmd.add_parser('connect',
+            help='Connect a local directory to an existing application',
+            parents=[connect_options_parser])
+    connect.add_argument('application', help='specify the application')
 
     # dotcloud disconnect
     subcmd.add_parser('disconnect', help='Disconnect the current directory from dotCloud app')
@@ -113,11 +117,6 @@ def get_parser(name='dotcloud'):
     destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
             parents=[common_parser])
     destroy.add_argument('service', nargs='?', help='Specify the service')
-
-    connect = subcmd.add_parser('connect',
-            help='Connect a local directory to an existing application',
-            parents=[connect_options_parser])
-    connect.add_argument('application', help='specify the application')
 
     # dotcloud app
     subcmd.add_parser('app',
