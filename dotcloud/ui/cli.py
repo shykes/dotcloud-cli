@@ -326,9 +326,9 @@ class CLI(object):
         res = self.user.get('/applications')
         for app in sorted(res.items, key=lambda x: x['name']):
             if app['name'] == args.application:
-                print '* ' + self.colors.green(app['name'])
+                print '* ' + '{0} ({1})'.format(self.colors.green(app['name']), app['flavor'])
             else:
-                print '  ' + app['name']
+                print '  ' + '{0} ({1})'.format(app['name'], app.get('flavor'))
 
     def cmd_create(self, args):
         self.info('Creating a {c.bright}{flavor}{c.reset} application named "{name}"'.format(
@@ -909,6 +909,7 @@ class CLI(object):
 
     @app_local
     def cmd_restart(self, args):
+        # FIXME: Handle --all?
         service_name, instance_id = self.parse_service_instance(args)
 
         url = '/applications/{0}/services/{1}/restart?instance={2}' \
