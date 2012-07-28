@@ -520,6 +520,33 @@ class CLI(object):
                     for svc in args.services])))
 
     @app_local
+    def cmd_status(self, args):
+        color_map = {
+            'up': self.colors.green,
+            'down': self.colors.red,
+            'hibernating': self.colors.blue
+        }
+
+        self.info('Probing status for service "{0}"...'.format(args.service))
+        url = '/applications/{0}/services/{1}'.format(args.application, args.service)
+        res = self.user.get(url)
+        for instance in res.item['instances']:
+            url = '/applications/{0}/services/{1}/instances/{2}/status'.format(
+                args.application, args.service, instance['container_id'])
+            title = '{0}.{1}: '.format(
+                args.service, instance['container_id'])
+            print title,
+            sys.stdout.flush()
+            status = self.user.get(url).item
+            print '{color}{c.bright}{status}{c.reset}'.format(
+                color=color_map.get(status['status'], self.colors.reset),
+                status=status['status'],
+                c=self.colors)
+            if 'custom' in status:
+                for (k, v) in status['custom'].items():
+                    print '{0} {1} -> {2}'.format(' ' * len(title), k, v)
+
+    @app_local
     def cmd_info(self, args):
         self.info('Application {0}'.format(args.application))
         url = '/applications/{0}/services'.format(args.application)
