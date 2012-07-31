@@ -4,6 +4,7 @@ from .parser import get_parser
 from .version import VERSION
 from .config import GlobalConfig, CLIENT_KEY, CLIENT_SECRET
 from .colors import Colors
+from .utils import pprint_table, pprint_kv
 from ..client import RESTClient
 from ..client.errors import RESTAPIError, AuthenticationNotConfigured
 from ..client.auth import BasicAuth, NullAuth, OAuth2Auth
@@ -24,7 +25,11 @@ import datetime
 import calendar
 import tempfile
 import stat
+import yaml
+import locale
 
+# Set locale
+locale.setlocale(locale.LC_ALL, '')
 
 class CLI(object):
     __version__ = VERSION
@@ -546,54 +551,106 @@ class CLI(object):
                 for (k, v) in status['custom'].items():
                     print '{0} {1} -> {2}'.format(' ' * len(title), k, v)
 
+
     @app_local
     def cmd_info(self, args):
-        self.info('Application {0}'.format(args.application))
-        url = '/applications/{0}/services'.format(args.application)
-        res = self.user.get(url)
+        if args.service:
+            return self.cmd_info_service(args)
+        else:
+            return self.cmd_info_app(args)
 
-        if not res.items:
+    def cmd_info_service(self, args):
+        url = '/applications/{0}/services/{1}'.format(args.application,
+            args.service)
+        service = self.user.get(url).item
+
+        print '== {0}'.format(service.get('name'))
+
+        build_config = yaml.safe_dump(service.get('build_config'),
+            width=80, indent=4, default_flow_style=False).strip()
+        build_config = '\n'.join(['  {0}'.format(line) for line in build_config.split('\n')])
+
+        pprint_kv([
+            ('type', service.get('service_type')),
+            ('instances', service.get('instance_count')),
+            ('reserved memory',
+                bytes2human(service.get('reserved_memory')) if service.get('reserved_memory') else 'N/A'),
+            ('build_config', '\n{0}'.format(build_config)),
+            ('runtime_config', service.get('runtime_config').items()),
+            ('URLs', 'N/A' if not service.get('domains') else '')
+        ])
+
+        for domain in service.get('domains'):
+            print '  - http://{0}'.format(domain.get('domain'))
+
+        for instance in sorted(service.get('instances', []), key=lambda i: i.get('container_id')):
+            print
+            print '=== {0}.{1}'.format(service.get('name'), instance.get('container_id'))
+            info = [
+                ('datacenter', instance.get('datacenter')),
+            ]
+            for k in ['host', 'container_name', 'revision']:
+                if instance.get(k):
+                    info.append((k, instance.get(k)))
+            info.append(
+                ('ports', [(port.get('name'), port.get('url'))
+                    for port in instance.get('ports')
+                    if port.get('name') != 'http']))
+            pprint_kv(info)
+
+    def cmd_info_app(self, args):
+        url = '/applications/{0}'.format(args.application)
+        application = self.user.get(url).item
+        print '=== {0}'.format(application.get('name'))
+
+        info = [
+            ('flavor', application.get('flavor'))
+        ]
+
+        billing = application.get('billing')
+        if not billing.get('free', False):
+            info.append(('cost to date', '${0}'.format(
+                locale.format("%d", billing.get('cost'), grouping=True))))
+            info.append(('expected month-end cost', '${0}'.format(
+                locale.format("%d", billing.get('expected_month_end_cost'), grouping=True))))
+        else:
+            info.append(('cost to date', 'Free'))
+
+        # FIXME: Show deployed revision
+
+        info.append(('services', ''))
+        pprint_kv(info, padding=5)
+
+        services = application.get('services', [])
+        if not services:
             self.warning('It looks like you haven\'t deployed your application.')
             self.warning('Run {0} push to deploy and see the information about your stack. '.format(self.cmd))
             return
 
-        for service in res.items:
-            print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
-            self.dump_service(service['instances'][0], indent=2)
+        services_table = [
+            ['name', 'type', 'instances', 'reserved memory']
+        ]
 
-        url = '/applications/{0}'.format(args.application)
-        res = self.user.get(url)
-        repo = res.item.get('repository')
-        revision = res.item.get('revision', None)
-
-        print '--------'
-        if repo:
-            print 'Repository: ' + repo
-        print 'Revision: ' + (revision if revision else '(Unknown)')
-
-    def dump_service(self, instance, indent=0):
-        def show(string):
-            buf = ' ' * indent
-            print buf + string
-        show('runtime_config:')
-        for (k, v) in instance['config'].iteritems():
-            show('  {0}: {1}'.format(k, v))
-        show('build_config:')
-        for (k, v) in instance['build_config'].iteritems():
-            show('  {0}: {1}'.format(k, v))
-        show('URLs:')
-        for port in instance['ports']:
-            show('  {0}: {1}'.format(port['name'], port['url']))
+        for service in sorted(services, key=lambda s: s.get('name')):
+            services_table.append([
+                service.get('name'),
+                service.get('service_type'),
+                service.get('instance_count'),
+                bytes2human(service.get('reserved_memory'))
+                    if service.get('reserved_memory') else 'N/A'])
+        pprint_table(services_table)
 
     @app_local
     def cmd_url(self, args):
         if args.service:
             urls = self.get_url(args.application, args.service)
             if urls:
-                print urls[-1]['url']
+                print ' '.join(urls)
         else:
-            for (service, urls) in self.get_url(args.application).items():
-                print '{0}: {1}'.format(service, urls[-1]['url'])
+            pprint_kv([
+                (service, ' ; '.join(urls))
+                for (service, urls) in self.get_url(args.application).items()
+            ], padding=5)
 
     @app_local
     def cmd_open(self, args):
@@ -602,7 +659,7 @@ class CLI(object):
         if args.service:
             urls = self.get_url(args.application, args.service)
             if urls:
-                webbrowser.open(urls[-1]['url'])
+                webbrowser.open(urls[-1])
         else:
             urls = self.get_url(args.application)
             if not urls:
@@ -613,23 +670,24 @@ class CLI(object):
                     .format(', '.join(urls.keys())))
             webbrowser.open(urls.values()[0][-1]['url'])
 
-    def get_url(self, application, service=None, type='http'):
+    def get_url(self, application, service=None):
         if service is None:
             urls = {}
             url = '/applications/{0}/services'.format(application)
             res = self.user.get(url)
             for service in res.items:
-                instance = service['instances'][0]
-                u = [p for p in instance.get('ports', []) if p['name'] == type]
-                if len(u) > 0:
-                    urls[service['name']] = u
+                domains = service.get('domains')
+                if domains:
+                    urls[service['name']] = \
+                        ['http://{0}'.format(d.get('domain')) for d in domains]
             return urls
         else:
             url = '/applications/{0}/services/{1}'.format(application,
                 service)
-            res = self.user.get(url)
-            instance = res.item['instances'][0]
-            return [p for p in instance.get('ports', []) if p['name'] == type]
+            domains = self.user.get(url).item.get('domains')
+            if not domains:
+                return []
+            return ['http://{0}'.format(d.get('domain')) for d in domains]
 
     @app_local
     def cmd_deploy(self, args):
