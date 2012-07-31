@@ -888,7 +888,7 @@ class CLI(object):
         urls = self.get_url(application)
         if urls:
             self.success('Application is live at {c.bright}{url}{c.reset}' \
-                .format(url=urls.values()[-1][-1]['url'], c=self.colors))
+                .format(url=urls.values()[-1][-1], c=self.colors))
         else:
             self.success('Application is live')
         return 0
