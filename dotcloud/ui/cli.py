@@ -24,6 +24,8 @@ import datetime
 import calendar
 import tempfile
 import stat
+import platform
+import locale
 
 
 class CLI(object):
@@ -33,7 +35,7 @@ class CLI(object):
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
         self._version_checked = False
         self.client = RESTClient(endpoint=endpoint, debug=debug,
-                user_agent='dotcloud-cli/{0}'.format(self.__version__),
+                user_agent=self._build_useragent_string(),
                 version_checker=self._check_version)
         self.debug = debug
         self.colors = Colors(colors)
@@ -57,6 +59,15 @@ class CLI(object):
         else:
             self.user = self.client.make_prefix_client('/me')
         self.cmd = os.path.basename(sys.argv[0])
+
+    def _build_useragent_string(self):
+        (system, node, release, version, machine, processor) = platform.uname()
+        pyimpl = platform.python_implementation()
+        pyver = platform.python_version()
+        (langcode, encoding) = locale.getdefaultlocale()
+        return 'dotcloud-cli/{cliver} ({system}; {release}; ' \
+                '{machine}; {pyimpl}; {pyver}; {langcode})'.format(
+                cliver=self.__version__, **locals())
 
     def setup_auth(self):
         if self.global_config.get('token'):
