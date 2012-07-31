@@ -30,6 +30,7 @@ class CLI(object):
     __version__ = VERSION
     def __init__(self, debug=False, colors=None, endpoint=None, username=None):
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
         self._version_checked = False
         self.client = RESTClient(endpoint=endpoint, debug=debug,
                 user_agent='dotcloud-cli/{0}'.format(self.__version__),
