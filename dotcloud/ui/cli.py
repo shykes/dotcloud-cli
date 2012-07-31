@@ -25,7 +25,6 @@ import datetime
 import calendar
 import tempfile
 import stat
-import yaml
 import platform
 import locale
 
@@ -577,17 +576,12 @@ class CLI(object):
 
         print '== {0}'.format(service.get('name'))
 
-        build_config = yaml.safe_dump(service.get('build_config'),
-            width=80, indent=4, default_flow_style=False).strip()
-        build_config = '\n'.join(['  {0}'.format(line) for line in build_config.split('\n')])
-
         pprint_kv([
             ('type', service.get('service_type')),
             ('instances', service.get('instance_count')),
             ('reserved memory',
                 bytes2human(service.get('reserved_memory')) if service.get('reserved_memory') else 'N/A'),
-            ('build_config', '\n{0}'.format(build_config)),
-            ('runtime_config', service.get('runtime_config').items()),
+            ('config', service.get('runtime_config').items()),
             ('URLs', 'N/A' if not service.get('domains') else '')
         ])
 
@@ -597,17 +591,15 @@ class CLI(object):
         for instance in sorted(service.get('instances', []), key=lambda i: i.get('container_id')):
             print
             print '=== {0}.{1}'.format(service.get('name'), instance.get('container_id'))
-            info = [
+            pprint_kv([
                 ('datacenter', instance.get('datacenter')),
-            ]
-            for k in ['host', 'container_name', 'revision']:
-                if instance.get(k):
-                    info.append((k, instance.get(k)))
-            info.append(
+                ('host', instance.get('host')),
+                ('container', instance.get('container_name')),
+                ('revision', instance.get('revision')),
                 ('ports', [(port.get('name'), port.get('url'))
                     for port in instance.get('ports')
-                    if port.get('name') != 'http']))
-            pprint_kv(info)
+                    if port.get('name') != 'http'])
+            ])
 
     def cmd_info_app(self, args):
         url = '/applications/{0}'.format(args.application)
