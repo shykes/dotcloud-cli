@@ -430,14 +430,6 @@ class CLI(object):
         print args.application
 
     @app_local
-    def cmd_service(self, args):
-        if args.subcmd == 'list':
-            url = '/applications/{0}/services'.format(args.application)
-            res = self.user.get(url)
-            for service in res.items:
-                print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
-
-    @app_local
     def cmd_domain(self, args):
         if args.subcmd == 'list':
             url = '/applications/{0}/services'.format(args.application)
