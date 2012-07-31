@@ -26,6 +26,7 @@ import calendar
 import tempfile
 import stat
 import yaml
+import platform
 import locale
 
 # Set locale
@@ -35,9 +36,10 @@ class CLI(object):
     __version__ = VERSION
     def __init__(self, debug=False, colors=None, endpoint=None, username=None):
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
         self._version_checked = False
         self.client = RESTClient(endpoint=endpoint, debug=debug,
-                user_agent='dotcloud-cli/{0}'.format(self.__version__),
+                user_agent=self._build_useragent_string(),
                 version_checker=self._check_version)
         self.debug = debug
         self.colors = Colors(colors)
@@ -61,6 +63,15 @@ class CLI(object):
         else:
             self.user = self.client.make_prefix_client('/me')
         self.cmd = os.path.basename(sys.argv[0])
+
+    def _build_useragent_string(self):
+        (system, node, release, version, machine, processor) = platform.uname()
+        pyimpl = platform.python_implementation()
+        pyver = platform.python_version()
+        (langcode, encoding) = locale.getdefaultlocale()
+        return 'dotcloud-cli/{cliver} ({system}; {release}; ' \
+                '{machine}; {pyimpl}; {pyver}; {langcode})'.format(
+                cliver=self.__version__, **locals())
 
     def setup_auth(self):
         if self.global_config.get('token'):
@@ -1020,9 +1031,10 @@ class CLI(object):
             url = '/applications/{0}/activity'.format(args.application)
         else:
             url = '/activity'
+        activities = self.user.get(url).items
         print 'time', ' ' * 14,
         print 'category action   application.service (details)'
-        for activity in self.user.get(url).items:
+        for activity in activities:
             print '{ts:19} {category:8} {action:8}'.format(
                     ts=str(self.iso_dtime_local(activity['created_at'])),
                     **activity),
