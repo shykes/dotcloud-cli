@@ -140,6 +140,11 @@ def get_parser(name='dotcloud'):
             parents=[common_parser])
     url.add_argument('service', nargs='?', help='Specify the service')
 
+    # dotcloud status
+    status = subcmd.add_parser('status', help='Probe the status of a service',
+            parents=[common_parser])
+    status.add_argument('service', help='Specify the service')
+
     # dotcloud open
     open_ = subcmd.add_parser('open', help='Open the application in the browser',
             parents=[common_parser])

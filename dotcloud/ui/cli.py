@@ -4,6 +4,7 @@ from .parser import get_parser
 from .version import VERSION
 from .config import GlobalConfig, CLIENT_KEY, CLIENT_SECRET
 from .colors import Colors
+from .utils import pprint_table, pprint_kv
 from ..client import RESTClient
 from ..client.errors import RESTAPIError, AuthenticationNotConfigured
 from ..client.auth import BasicAuth, NullAuth, OAuth2Auth
@@ -24,15 +25,20 @@ import datetime
 import calendar
 import tempfile
 import stat
+import platform
+import locale
 
+# Set locale
+locale.setlocale(locale.LC_ALL, '')
 
 class CLI(object):
     __version__ = VERSION
     def __init__(self, debug=False, colors=None, endpoint=None, username=None):
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
         self._version_checked = False
         self.client = RESTClient(endpoint=endpoint, debug=debug,
-                user_agent='dotcloud-cli/{0}'.format(self.__version__),
+                user_agent=self._build_useragent_string(),
                 version_checker=self._check_version)
         self.debug = debug
         self.colors = Colors(colors)
@@ -56,6 +62,15 @@ class CLI(object):
         else:
             self.user = self.client.make_prefix_client('/me')
         self.cmd = os.path.basename(sys.argv[0])
+
+    def _build_useragent_string(self):
+        (system, node, release, version, machine, processor) = platform.uname()
+        pyimpl = platform.python_implementation()
+        pyver = platform.python_version()
+        (langcode, encoding) = locale.getdefaultlocale()
+        return 'dotcloud-cli/{cliver} ({system}; {release}; ' \
+                '{machine}; {pyimpl}; {pyver}; {langcode})'.format(
+                cliver=self.__version__, **locals())
 
     def setup_auth(self):
         if self.global_config.get('token'):
@@ -326,9 +341,9 @@ class CLI(object):
         res = self.user.get('/applications')
         for app in sorted(res.items, key=lambda x: x['name']):
             if app['name'] == args.application:
-                print '* ' + self.colors.green(app['name'])
+                print '* ' + '{0} ({1})'.format(self.colors.green(app['name']), app['flavor'])
             else:
-                print '  ' + app['name']
+                print '  ' + '{0} ({1})'.format(app['name'], app.get('flavor'))
 
     def cmd_create(self, args):
         self.info('Creating a {c.bright}{flavor}{c.reset} application named "{name}"'.format(
@@ -520,54 +535,126 @@ class CLI(object):
                     for svc in args.services])))
 
     @app_local
-    def cmd_info(self, args):
-        self.info('Application {0}'.format(args.application))
-        url = '/applications/{0}/services'.format(args.application)
-        res = self.user.get(url)
+    def cmd_status(self, args):
+        color_map = {
+            'up': self.colors.green,
+            'down': self.colors.red,
+            'hibernating': self.colors.blue
+        }
 
-        if not res.items:
+        self.info('Probing status for service "{0}"...'.format(args.service))
+        url = '/applications/{0}/services/{1}'.format(args.application, args.service)
+        res = self.user.get(url)
+        for instance in res.item['instances']:
+            url = '/applications/{0}/services/{1}/instances/{2}/status'.format(
+                args.application, args.service, instance['container_id'])
+            title = '{0}.{1}: '.format(
+                args.service, instance['container_id'])
+            print title,
+            sys.stdout.flush()
+            status = self.user.get(url).item
+            print '{color}{c.bright}{status}{c.reset}'.format(
+                color=color_map.get(status['status'], self.colors.reset),
+                status=status['status'],
+                c=self.colors)
+            if 'custom' in status:
+                for (k, v) in status['custom'].items():
+                    print '{0} {1} -> {2}'.format(' ' * len(title), k, v)
+
+
+    @app_local
+    def cmd_info(self, args):
+        if args.service:
+            return self.cmd_info_service(args)
+        else:
+            return self.cmd_info_app(args)
+
+    def cmd_info_service(self, args):
+        url = '/applications/{0}/services/{1}'.format(args.application,
+            args.service)
+        service = self.user.get(url).item
+
+        print '== {0}'.format(service.get('name'))
+
+        pprint_kv([
+            ('type', service.get('service_type')),
+            ('instances', service.get('instance_count')),
+            ('reserved memory',
+                bytes2human(service.get('reserved_memory')) if service.get('reserved_memory') else 'N/A'),
+            ('config', service.get('runtime_config').items()),
+            ('URLs', 'N/A' if not service.get('domains') else '')
+        ])
+
+        for domain in service.get('domains'):
+            print '  - http://{0}'.format(domain.get('domain'))
+
+        for instance in sorted(service.get('instances', []), key=lambda i: i.get('container_id')):
+            print
+            print '=== {0}.{1}'.format(service.get('name'), instance.get('container_id'))
+            pprint_kv([
+                ('datacenter', instance.get('datacenter')),
+                ('host', instance.get('host')),
+                ('container', instance.get('container_name')),
+                ('revision', instance.get('revision')),
+                ('ports', [(port.get('name'), port.get('url'))
+                    for port in instance.get('ports')
+                    if port.get('name') != 'http'])
+            ])
+
+    def cmd_info_app(self, args):
+        url = '/applications/{0}'.format(args.application)
+        application = self.user.get(url).item
+        print '=== {0}'.format(application.get('name'))
+
+        info = [
+            ('flavor', application.get('flavor'))
+        ]
+
+        billing = application.get('billing')
+        if not billing.get('free', False):
+            info.append(('cost to date', '${0}'.format(
+                locale.format("%d", billing.get('cost'), grouping=True))))
+            info.append(('expected month-end cost', '${0}'.format(
+                locale.format("%d", billing.get('expected_month_end_cost'), grouping=True))))
+        else:
+            info.append(('cost to date', 'Free'))
+
+        # FIXME: Show deployed revision
+
+        info.append(('services', ''))
+        pprint_kv(info, padding=5)
+
+        services = application.get('services', [])
+        if not services:
             self.warning('It looks like you haven\'t deployed your application.')
             self.warning('Run {0} push to deploy and see the information about your stack.'.
                          format(self.cmd))
             return
 
-        for service in res.items:
-            print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
-            self.dump_service(service['instances'][0], indent=2)
+        services_table = [
+            ['name', 'type', 'instances', 'reserved memory']
+        ]
 
-        url = '/applications/{0}'.format(args.application)
-        res = self.user.get(url)
-        repo = res.item.get('repository')
-        revision = res.item.get('revision', None)
-
-        print '--------'
-        if repo:
-            print 'Repository: ' + repo
-        print 'Revision: ' + (revision if revision else '(Unknown)')
-
-    def dump_service(self, instance, indent=0):
-        def show(string):
-            buf = ' ' * indent
-            print buf + string
-        show('runtime_config:')
-        for (k, v) in instance['config'].iteritems():
-            show('  {0}: {1}'.format(k, v))
-        show('build_config:')
-        for (k, v) in instance['build_config'].iteritems():
-            show('  {0}: {1}'.format(k, v))
-        show('URLs:')
-        for port in instance['ports']:
-            show('  {0}: {1}'.format(port['name'], port['url']))
+        for service in sorted(services, key=lambda s: s.get('name')):
+            services_table.append([
+                service.get('name'),
+                service.get('service_type'),
+                service.get('instance_count'),
+                bytes2human(service.get('reserved_memory'))
+                    if service.get('reserved_memory') else 'N/A'])
+        pprint_table(services_table)
 
     @app_local
     def cmd_url(self, args):
         if args.service:
             urls = self.get_url(args.application, args.service)
             if urls:
-                print urls[-1]['url']
+                print ' '.join(urls)
         else:
-            for (service, urls) in self.get_url(args.application).items():
-                print '{0}: {1}'.format(service, urls[-1]['url'])
+            pprint_kv([
+                (service, ' ; '.join(urls))
+                for (service, urls) in self.get_url(args.application).items()
+            ], padding=5)
 
     @app_local
     def cmd_open(self, args):
@@ -576,7 +663,7 @@ class CLI(object):
         if args.service:
             urls = self.get_url(args.application, args.service)
             if urls:
-                webbrowser.open(urls[-1]['url'])
+                webbrowser.open(urls[-1])
         else:
             urls = self.get_url(args.application)
             if not urls:
@@ -587,23 +674,24 @@ class CLI(object):
                     .format(', '.join(urls.keys())))
             webbrowser.open(urls.values()[0][-1]['url'])
 
-    def get_url(self, application, service=None, type='http'):
+    def get_url(self, application, service=None):
         if service is None:
             urls = {}
             url = '/applications/{0}/services'.format(application)
             res = self.user.get(url)
             for service in res.items:
-                instance = service['instances'][0]
-                u = [p for p in instance.get('ports', []) if p['name'] == type]
-                if len(u) > 0:
-                    urls[service['name']] = u
+                domains = service.get('domains')
+                if domains:
+                    urls[service['name']] = \
+                        ['http://{0}'.format(d.get('domain')) for d in domains]
             return urls
         else:
             url = '/applications/{0}/services/{1}'.format(application,
                 service)
-            res = self.user.get(url)
-            instance = res.item['instances'][0]
-            return [p for p in instance.get('ports', []) if p['name'] == type]
+            domains = self.user.get(url).item.get('domains')
+            if not domains:
+                return []
+            return ['http://{0}'.format(d.get('domain')) for d in domains]
 
     @app_local
     def cmd_deploy(self, args):
@@ -804,7 +892,7 @@ class CLI(object):
         urls = self.get_url(application)
         if urls:
             self.success('Application is live at {c.bright}{url}{c.reset}' \
-                .format(url=urls.values()[-1][-1]['url'], c=self.colors))
+                .format(url=urls.values()[-1][-1], c=self.colors))
         else:
             self.success('Application is live')
         return 0
@@ -914,6 +1002,7 @@ class CLI(object):
     def cmd_restart(self, args):
         if args.instance.find('.') in (-1, 0):
             self.die('You must specify a service and instance, e.g. "www.0"')
+        # FIXME: Handle --all?
         service_name, instance_id = self.parse_service_instance(args.instance)
 
         url = '/applications/{0}/services/{1}/restart?instance={2}' \
@@ -939,9 +1028,10 @@ class CLI(object):
             url = '/applications/{0}/activity'.format(args.application)
         else:
             url = '/activity'
+        activities = self.user.get(url).items
         print 'time', ' ' * 14,
         print 'category action   application.service (details)'
-        for activity in self.user.get(url).items:
+        for activity in activities:
             print '{ts:19} {category:8} {action:8}'.format(
                     ts=str(self.iso_dtime_local(activity['created_at'])),
                     **activity),
