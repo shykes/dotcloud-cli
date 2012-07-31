@@ -430,14 +430,6 @@ class CLI(object):
         print args.application
 
     @app_local
-    def cmd_service(self, args):
-        if args.subcmd == 'list':
-            url = '/applications/{0}/services'.format(args.application)
-            res = self.user.get(url)
-            for service in res.items:
-                print '{0} (instances: {1})'.format(service['name'], len(service['instances']))
-
-    @app_local
     def cmd_domain(self, args):
         if args.subcmd == 'list':
             url = '/applications/{0}/services'.format(args.application)
@@ -475,7 +467,7 @@ class CLI(object):
                 ', '.join(args.values), args.application))
             patch = {}
             for pair in args.values:
-                key, val = pair.split('=')
+                key, val = pair.split('=', 1)
                 patch[key] = val
             self.user.patch(url, patch)
             deploy = True
@@ -627,7 +619,8 @@ class CLI(object):
         services = application.get('services', [])
         if not services:
             self.warning('It looks like you haven\'t deployed your application.')
-            self.warning('Run {0} push to deploy and see the information about your stack. '.format(self.cmd))
+            self.warning('Run {0} push to deploy and see the information about your stack.'.
+                         format(self.cmd))
             return
 
         services_table = [
@@ -911,9 +904,11 @@ class CLI(object):
             s = s.replace(c, '\\' + c)
         return s
 
-    def parse_service_instance(self, args):
-        if '.' in args.service_or_instance:
-            service_name, instance_id = args.service_or_instance.split('.', 2)
+    def parse_service_instance(self, service_or_instance):
+        if '.' in service_or_instance:
+            service_name, instance_id = service_or_instance.split('.', 1)
+            if not (service_name and instance_id):
+                self.die('Service instances must be formed like, "www.0"')
             try:
                 instance_id = int(instance_id)
                 if instance_id < 0:
@@ -922,12 +917,12 @@ class CLI(object):
                 self.die('Unable to parse instance number: {0}'.format(e))
 
         else:
-            service_name = args.service_or_instance
+            service_name = service_or_instance
             instance_id = 0
         return service_name, instance_id
 
     def get_ssh_endpoint(self, args):
-        service_name, instance_id = self.parse_service_instance(args)
+        service_name, instance_id = self.parse_service_instance(args.service_or_instance)
 
         url = '/applications/{0}/services/{1}'.format(args.application,
                 service_name)
@@ -997,8 +992,10 @@ class CLI(object):
 
     @app_local
     def cmd_restart(self, args):
+        if args.instance.find('.') in (-1, 0):
+            self.die('You must specify a service and instance, e.g. "www.0"')
         # FIXME: Handle --all?
-        service_name, instance_id = self.parse_service_instance(args)
+        service_name, instance_id = self.parse_service_instance(args.instance)
 
         url = '/applications/{0}/services/{1}/restart?instance={2}' \
             .format(args.application, service_name, instance_id)
@@ -1170,15 +1167,15 @@ class CLI(object):
     def cmd_dlogs(self, args):
         filter_svc = None
         filter_inst = None
-        if args.service:
-            parts = args.service.split('.')
+        if args.service_or_instance:
+            parts = args.service_or_instance.split('.')
             filter_svc = parts[0]
             if len(parts) > 1:
                 filter_inst = int(parts[1])
 
         follow = not args.no_follow if (filter_svc is None and (args.lines is
             None or args.lines > 0)) else False
-        return self._stream_deploy_logs(args.application, did=args.d,
+        return self._stream_deploy_logs(args.application, did=args.deployment_id,
                 filter_svc=filter_svc, filter_inst=filter_inst,
                 follow=follow, lines=args.lines)
 

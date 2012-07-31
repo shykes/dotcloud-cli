@@ -3,6 +3,7 @@ import sys
 from .version import VERSION
 from ..packages.bytesconverter import human2bytes
 
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         print >>sys.stderr, 'error: {0}'.format(message)
@@ -12,21 +13,19 @@ class Parser(argparse.ArgumentParser):
 
 class ScaleOperation(object):
     def __init__(self, kv):
-        if kv.count('=') != 1:
-            raise argparse.ArgumentTypeError('Invalid action "{0}"' \
-                .format(kv))
+        if kv.startswith('=') or kv.count('=') != 1:
+            raise argparse.ArgumentTypeError('Invalid action "{0}"'.format(kv))
         (k, v) = kv.split('=')
         if not v:
-            raise argparse.ArgumentTypeError('Invalid value for "{0}"' \
-                    .format(k))
+            raise argparse.ArgumentTypeError('Invalid value for "{0}"'.format(k))
         if ':' in k:
             (self.name, self.action) = k.split(':', 1)
         else:
             (self.name, self.action) = (k, 'instances')
 
         if self.action not in ['instances', 'memory']:
-            raise argparse.ArgumentTypeError('Invalid action for "{0}": ' \
-                    'Action must be either "instances" or "memory"' \
+            raise argparse.ArgumentTypeError('Invalid action for "{0}": '
+                    'Action must be either "instances" or "memory"'
                     .format(self.action))
 
         if self.action == 'instances':
@@ -34,11 +33,11 @@ class ScaleOperation(object):
                 self.original_value = int(v)
                 self.value = int(v)
             except ValueError:
-                raise argparse.ArgumentTypeError('Invalid value for "{0}": ' \
-                        'Instance count must be a number'.format(kv))
+                raise argparse.ArgumentTypeError(
+                        'Invalid value for "{0}": Instance count must be a number'.format(kv))
         elif self.action == 'memory':
             self.original_value = v
-            # Perform sone sanitization of the memory value
+            # Normalize the memory value
             v = v.upper()
             # Strip the trailing B as human2bytes doesn't handle those
             if v.endswith('B'):
@@ -49,115 +48,140 @@ class ScaleOperation(object):
                 try:
                     self.value = human2bytes(v)
                 except Exception:
-                    raise argparse.ArgumentTypeError('Invalid value for "{0}"' \
-                        .format(kv))
+                    raise argparse.ArgumentTypeError('Invalid value for "{0}"'.format(kv))
+
+
+def validate_var(kv):
+    # Expressions must contain a name and '='.
+    if kv.find('=') in (-1, 0):
+        raise argparse.ArgumentTypeError(
+                '"{0}" is an invalid variable expresion. '
+                'Variables are set like "foo=bar".'.format(kv))
+    return kv
 
 
 def get_parser(name='dotcloud'):
-
+    # The common parser is used as a parent for all sub-commands so that
+    # they all share --application
     common_parser = Parser(prog=name, add_help=False)
-    common_parser.add_argument('--application', '-A', help='specify the application')
+    common_parser.add_argument('--application', '-a', help='Specify the application')
 
+    # The "connect" and "create" share some options, as "create" will
+    # offer to connect the current directory to the new application.
     connect_options_parser = Parser(prog=name, add_help=False)
     rsync_or_dvcs = connect_options_parser.add_mutually_exclusive_group()
-    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
+    rsync_or_dvcs.add_argument('--rsync', action='store_true',
             help='Always use rsync to push (default)')
-    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
+    rsync_or_dvcs.add_argument('--git', action='store_true',
             help='Always use git to push')
-    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
+    rsync_or_dvcs.add_argument('--hg', action='store_true',
             help='Always use mercurial to push')
+    connect_options_parser.add_argument('--branch', '-b', metavar='NAME',
+            help='Always use this branch when pushing via DVCS. '
+                 '(If not set, each push will use the active branch by default)')
 
-    branch_or_commit = connect_options_parser.add_mutually_exclusive_group()
-    branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
-            help='Always use this branch when pushing via dvcs (by default, use the active one)')
-
+    # Define all of the commands...
     parser = Parser(prog=name, description='dotcloud CLI',
             parents=[common_parser])
     parser.add_argument('--version', '-v', action='version', version='dotcloud/{0}'.format(VERSION))
 
     subcmd = parser.add_subparsers(dest='cmd')
 
-    subcmd.add_parser('list', help='list applications')
+    # dotcloud setup
+    subcmd.add_parser('setup', help='Setup the client authentication')
 
-    check = subcmd.add_parser('check', help='Check the installation and authentication')
-    setup = subcmd.add_parser('setup', help='Setup the client authentication')
+    # dotcloud check
+    subcmd.add_parser('check', help='Check the installation and authentication')
 
+    # dotcloud list
+    subcmd.add_parser('list', help='List all applications')
+
+    # dotcloud connect
+    connect = subcmd.add_parser('connect',
+            help='Connect a local directory to an existing application',
+            parents=[connect_options_parser])
+    connect.add_argument('application', help='Specify the application')
+
+    # dotcloud disconnect
+    subcmd.add_parser('disconnect',
+            help='Disconnect the current directory from its application')
+
+    # dotcloud create
     create = subcmd.add_parser('create', help='Create a new application',
             parents=[connect_options_parser])
     create.add_argument('--flavor', '-f', default='sandbox',
             help='Choose a flavor for your application. Defaults to sandbox.')
-    create.add_argument('application', help='specify the application')
+    create.add_argument('application', help='Specify the application')
 
-    conn = subcmd.add_parser('connect', help='Connect a local directory with an existing app',
-            parents=[connect_options_parser])
-    conn.add_argument('application', help='specify the application')
-
+    # dotcloud destroy
     destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
             parents=[common_parser])
     destroy.add_argument('service', nargs='?', help='Specify the service')
 
-    disconnect = subcmd.add_parser('disconnect', help='Disconnect the current directory from dotCloud app')
+    # dotcloud app
+    subcmd.add_parser('app',
+            help='Display the application name connected to the current directory')
 
-    app = subcmd.add_parser('app', help='Show the application name linked to the current directory')
-
-    activity = subcmd.add_parser('activity', help='Your recent activity',
+    # dotcloud activity
+    activity = subcmd.add_parser('activity', help='Display your recent activity',
             parents=[common_parser])
+    activity.add_argument('--all' ,'-A', action='store_true',
+            help='Print out your activities among all your applications rather than the '
+                 'currently connected or selected one. (This is the default behavior when '
+                 'not connected to any application.)')
 
-    activity.add_argument('--all' ,'-a', action='store_true',
-            help='Print out your activities among all your applications'
-            ' rather than the currently connected or selected one.'
-            ' Implicit when not connected to any application')
-
-    info = subcmd.add_parser('info', help='Get information about the application',
+    # dotcloud info
+    info = subcmd.add_parser('info', help='Get information about the application or service',
             parents=[common_parser])
     info.add_argument('service', nargs='?', help='Specify the service')
 
+    # dotcloud url
+    url = subcmd.add_parser('url', help='Display the URL(s) for the application',
+            parents=[common_parser])
+    url.add_argument('service', nargs='?', help='Specify the service')
+
+    # dotcloud status
     status = subcmd.add_parser('status', help='Probe the status of a service',
             parents=[common_parser])
     status.add_argument('service', help='Specify the service')
 
-    url = subcmd.add_parser('url', help='Show URL for the application',
-            parents=[common_parser])
-    url.add_argument('service', nargs='?', help='Specify the service')
-
+    # dotcloud open
     open_ = subcmd.add_parser('open', help='Open the application in the browser',
             parents=[common_parser])
     open_.add_argument('service', nargs='?', help='Specify the service')
 
+    # dotcloud run service ...
     run = subcmd.add_parser('run',
             help='Open a shell or run a command inside a service instance',
             parents=[common_parser])
     run.add_argument('service_or_instance',
-            help='Open a shell or run the command on the first instance of a ' \
-                    'given service (ex: www) or a specific one (ex: www.1)')
-
+            help='Open a shell or run the command on the first instance of a given service '
+                 '(ex: www) or a specific one (ex: www.1)')
     run.add_argument('command', nargs='?',
-            help='The command to execute on the service\'s instance. ' \
-                    'If not specified, open a shell.')
+            help='The command to execute on the service\'s instance. '
+                 'If not specified, open a shell.')
     run.add_argument('args', nargs=argparse.REMAINDER, metavar='...',
             help='Any arguments to the command')
 
-    push = subcmd.add_parser('push', help='Push the code',
-            parents=[common_parser])
+    # dotcloud push
+    push = subcmd.add_parser('push', help='Push the code', parents=[common_parser])
     push.add_argument('path', nargs='?', default=None,
             help='Path to the directory to push (by default "./")')
     push.add_argument('--clean', action='store_true',
             help='Do a full build (rather than incremental)')
-
     rsync_or_dvcs = push.add_mutually_exclusive_group()
-    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
-            help='Use rsync to push (default)')
-    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
-            help='Use git to push rather')
-    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
-            help='Use mercurial to push')
-
+    rsync_or_dvcs.add_argument('--rsync', action='store_true', help='Use rsync to push (default)')
+    rsync_or_dvcs.add_argument('--git', action='store_true', help='Use git to push')
+    rsync_or_dvcs.add_argument('--hg', action='store_true', help='Use mercurial to push')
     branch_or_commit = push.add_mutually_exclusive_group()
     branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
-            help='Specify the branch to push when pushing via dvcs (by default, use the active one)')
+            help='Specify the branch to push when pushing via DVCS '
+                 '(by default, use the active one)')
     branch_or_commit.add_argument('--commit', '-c', metavar='HASH',
-            help='Specify the commit hash to push when pushing via dvcs (by default, use the latest one)')
+            help='Specify the commit hash to push when pushing via DVCS '
+                 '(by default, use the latest one)')
 
+    # dotcloud deploy revision
     deploy = subcmd.add_parser('deploy', help='Deploy a specific version',
             parents=[common_parser])
     deploy.add_argument('revision',
@@ -165,24 +189,17 @@ def get_parser(name='dotcloud'):
     deploy.add_argument('--clean', action='store_true',
             help='If a build is needed, do a full build (rather than incremental)')
 
-    dlist = subcmd.add_parser('dlist', help='List recents deployments',
+    # dotcloud dlist
+    subcmd.add_parser('dlist', help='List recent deployments', parents=[common_parser])
+
+    # dotcloud dlogs deployment
+    dlogs = subcmd.add_parser('dlogs', help='Review past deployments or watch one in-flight',
             parents=[common_parser])
-
-    dlogs = subcmd.add_parser('dlogs', help='Play with deployments logs',
-            parents=[common_parser])
-
-    dlogs.add_argument('d', metavar='deployment_id',
-            help='Which recorded deployment to look at (discoverable though the command: dlist).'
-            ' or "latest".')
-
-    service_or_instance = dlogs.add_mutually_exclusive_group()
-    service_or_instance.add_argument('service', nargs='?',
-            help='Filter logs upon a given service (ex: www).'
-            ' Can be refined further with --build')
-    service_or_instance.add_argument('instance', nargs='?',
-            help='Filter logs upon a given service instance (ex: www.0).'
-            ' Can be refined further with --build or --install')
-
+    dlogs.add_argument('deployment_id',
+            help='Which recorded deployment to view (discoverable with the command, '
+                 '"dotcloud dlist") or "latest".')
+    dlogs.add_argument('service_or_instance', nargs='?',
+            help='Filter logs by a given service (ex: www) or a specific instance (ex: www.0). ')
     dlogs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
     dlogs.add_argument('--lines', '-n', type=int, metavar='N',
@@ -206,44 +223,31 @@ def get_parser(name='dotcloud'):
 #            ' If --no-follow, display up to DATE'
 #            )
 
-    logs = subcmd.add_parser('logs', help='Watch your application logs live',
+    # dotcloud logs
+    logs = subcmd.add_parser('logs', help='View your application logs or watch logs live',
             parents=[common_parser])
-
-    service_or_instance = logs.add_mutually_exclusive_group()
-    service_or_instance.add_argument('service', nargs='?',
-            help='Filter logs upon a given service (ex: www).')
-    service_or_instance.add_argument('instance', nargs='?',
-            help='Filter logs upon a given service instance (ex: www.0).')
-
+    logs.add_argument('service_or_instance',
+            help='Fetch logs from the given service (ex: www) or a specific instance (ex: www.1)')
     logs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
     logs.add_argument('--lines', '-n', type=int, metavar='N',
             help='Tail only N logs (before following real-time logs by default)')
 
-
-    def validate_var(kv):
-        if kv.count('=') != 1:
-            raise argparse.ArgumentTypeError('You must assign a value ' \
-                    'to "{0}" (e.g. {0}=VALUE)'.format(kv, kv))
-        (k, v) = kv.split('=')
-        if not v:
-            raise argparse.ArgumentTypeError('Invalid value for "{0}": '\
-                    'Values cannot be empty'.format(k))
-        return kv
-
+    # dotcloud var <list/set/unset> ...
     var = subcmd.add_parser('var', help='Manipulate application variables',
             parents=[common_parser]).add_subparsers(dest='subcmd')
-    var_list = var.add_parser('list', help='List the application variables',
+    var.add_parser('list', help='List the application variables',
             parents=[common_parser])
     var_set = var.add_parser('set', help='Set new application variables',
             parents=[common_parser])
     var_set.add_argument('values', help='Application variables to set',
-                         metavar='key=value', nargs='+', type=validate_var)
-    var_unset = var.add_parser('unset', help='Unset application variables',
+            metavar='key=value', nargs='+', type=validate_var)
+    var_unset = var.add_parser('unset', help='Unset (remove) application variables',
             parents=[common_parser])
-    var_unset.add_argument('variables', help='Application variables to unset', metavar='var', nargs='+')
+    var_unset.add_argument('variables', help='Application variables to unset',
+            metavar='var', nargs='+')
 
-
+    # dotcloud scale foo=3 bar:memory=128M
     scale = subcmd.add_parser('scale', help='Scale services',
             description='Manage horizontal (instances) or vertical (memory) scaling of services',
             parents=[common_parser])
@@ -251,31 +255,25 @@ def get_parser(name='dotcloud'):
                        help='Scaling action to perform e.g. www:instances=2 or www:memory=1gb',
                        type=ScaleOperation)
 
-    restart = subcmd.add_parser('restart',
-            help='Restart a service instance',
+    # dotcloud restart foo.0
+    restart = subcmd.add_parser('restart', help='Restart a service instance',
             parents=[common_parser])
-    restart.add_argument('service_or_instance',
-            help='Restart the first instance of a ' \
-                    'given service (ex: www) or a specific one (ex: www.1)')
+    restart.add_argument('instance',
+            help='Restart the first instance of a given service (ex: www) or '
+                 'a specific one (ex: www.1)')
 
+    # dotcloud domain <list/add/rm> service domain
     domain = subcmd.add_parser('domain', help='Manage domains for the service',
             parents=[common_parser]).add_subparsers(dest='subcmd')
-    domain_list = domain.add_parser('list', help='List the domains',
-            parents=[common_parser])
-    domain_add = domain.add_parser('add', help='Add a new domain',
-            parents=[common_parser])
+    domain.add_parser('list', help='List the domains', parents=[common_parser])
+    domain_add = domain.add_parser('add', help='Add a new domain', parents=[common_parser])
     domain_add.add_argument('service', help='Service to set domain for')
     domain_add.add_argument('domain', help='New domain name')
-    domain_rm = domain.add_parser('rm', help='Remove a domain',
-            parents=[common_parser])
+    domain_rm = domain.add_parser('rm', help='Remove a domain', parents=[common_parser])
     domain_rm.add_argument('service', help='Service to remove the domain from')
-    domain_rm.add_argument('domain', help='domain name to remove')
+    domain_rm.add_argument('domain', help='Domain name to remove')
 
-    service = subcmd.add_parser('service', help='Manage services',
-            parents=[common_parser]).add_subparsers(dest='subcmd')
-    service_list = service.add_parser('list', help='List the services',
-            parents=[common_parser])
-
+    # dotcloud revisions
     revisions = subcmd.add_parser('revisions',
             help='Display all the knowns revision of the application',
             parents=[common_parser])
