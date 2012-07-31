@@ -946,9 +946,10 @@ class CLI(object):
             url = '/applications/{0}/activity'.format(args.application)
         else:
             url = '/activity'
+        activities = self.user.get(url).items
         print 'time', ' ' * 14,
         print 'category action   application.service (details)'
-        for activity in self.user.get(url).items:
+        for activity in activities:
             print '{ts:19} {category:8} {action:8}'.format(
                     ts=str(self.iso_dtime_local(activity['created_at'])),
                     **activity),
