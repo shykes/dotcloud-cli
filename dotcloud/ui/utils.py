@@ -33,12 +33,14 @@ def pprint_table(rows):
     print_separator()
 
 
-def pprint_kv(items, separator=':', padding=2, offset=0):
+def pprint_kv(items, separator=':', padding=2, offset=0, skip_empty=True):
     if not items:
         return
-    width = max([len(item[0]) for item in items]) + padding
+    width = max([len(item[0]) for item in items if item[1] or not skip_empty]) + padding
     for item in items:
         (key, value) = item
+        if not value:
+            continue
         if isinstance(value, list) or isinstance(value, tuple):
             print '{align}{0}:'.format(key, align=' ' * offset)
             pprint_kv(value, offset=offset + 2)
