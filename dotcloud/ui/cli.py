@@ -454,11 +454,11 @@ class CLI(object):
                 args.domain, args.service))
 
     @app_local
-    def cmd_var(self, args):
-        url = '/applications/{0}/variables'.format(args.application)
+    def cmd_env(self, args):
+        url = '/applications/{0}/environment'.format(args.application)
         deploy = None
         if args.subcmd == 'list':
-            self.info('Variables for application {0}'.format(args.application))
+            self.info('Environment variables for application {0}'.format(args.application))
             var = self.user.get(url).item
             for name in sorted(var.keys()):
                 print '='.join((name, var.get(name)))
@@ -494,20 +494,18 @@ class CLI(object):
             return ((max(step, value) & ~(step / 2 - 1)) + step - 1) & ~(step - 1)
 
         for svc in args.services:
+            url = '/applications/{0}/services/{1}' \
+                .format(args.application, svc.name)
             try:
                 if svc.action == 'instances':
-                    url = '/applications/{0}/services/{1}/instances' \
-                        .format(args.application, svc.name)
                     self.info('Changing instances of {0} to {1}'.format(
                         svc.name, svc.original_value))
-                    self.user.put(url, {'instances': svc.value})
+                    self.user.patch(url, {'instance_count': svc.value})
                 elif svc.action == 'memory':
                     memory = round_memory(svc.value)
                     self.info('Changing memory of {0} to {1}B'.format(
                         svc.name, bytes2human(memory)))
-                    url = '/applications/{0}/services/{1}/memory' \
-                        .format(args.application, svc.name)
-                    self.user.put(url, {'memory': memory})
+                    self.user.patch(url, {'reserved_memory': memory})
             except RESTAPIError as e:
                 if e.code == requests.codes.bad_request:
                     self.die('Failed to scale {0} of "{1}": {2}'.format(
@@ -539,9 +537,9 @@ class CLI(object):
         res = self.user.get(url)
         for instance in res.item['instances']:
             url = '/applications/{0}/services/{1}/instances/{2}/status'.format(
-                args.application, args.service, instance['container_id'])
+                args.application, args.service, instance['instance_id'])
             title = '{0}.{1}: '.format(
-                args.service, instance['container_id'])
+                args.service, instance['instance_id'])
             print title,
             sys.stdout.flush()
             status = self.user.get(url).item
@@ -580,9 +578,9 @@ class CLI(object):
         for domain in service.get('domains'):
             print '  - http://{0}'.format(domain.get('domain'))
 
-        for instance in sorted(service.get('instances', []), key=lambda i: i.get('container_id')):
+        for instance in sorted(service.get('instances', []), key=lambda i: i.get('instance_id')):
             print
-            print '=== {0}.{1}'.format(service.get('name'), instance.get('container_id'))
+            print '=== {0}.{1}'.format(service.get('name'), instance.get('instance_id'))
             pprint_kv([
                 ('datacenter', instance.get('datacenter')),
                 ('host', instance.get('host')),
@@ -935,7 +933,7 @@ class CLI(object):
         service = self.user.get(url).item
 
         try:
-            instances = sorted(service['instances'], key=lambda i: i['container_id'])
+            instances = sorted(service['instances'], key=lambda i: i['instance_id'])
             instance = instances[instance_id]
         except IndexError:
             self.die('Not Found: Service ({0}) instance #{1} does not exist'.format(
