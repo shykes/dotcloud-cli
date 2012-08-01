@@ -454,11 +454,11 @@ class CLI(object):
                 args.domain, args.service))
 
     @app_local
-    def cmd_var(self, args):
-        url = '/applications/{0}/variables'.format(args.application)
+    def cmd_env(self, args):
+        url = '/applications/{0}/environment'.format(args.application)
         deploy = None
         if args.subcmd == 'list':
-            self.info('Variables for application {0}'.format(args.application))
+            self.info('Environment variables for application {0}'.format(args.application))
             var = self.user.get(url).item
             for name in sorted(var.keys()):
                 print '='.join((name, var.get(name)))

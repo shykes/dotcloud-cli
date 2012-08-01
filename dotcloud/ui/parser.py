@@ -51,12 +51,12 @@ class ScaleOperation(object):
                     raise argparse.ArgumentTypeError('Invalid value for "{0}"'.format(kv))
 
 
-def validate_var(kv):
+def validate_env(kv):
     # Expressions must contain a name and '='.
     if kv.find('=') in (-1, 0):
         raise argparse.ArgumentTypeError(
-                '"{0}" is an invalid variable expresion. '
-                'Variables are set like "foo=bar".'.format(kv))
+                '"{0}" is an invalid environment variable expresion. '
+                'Environment variables are set like "foo=bar".'.format(kv))
     return kv
 
 
@@ -234,17 +234,17 @@ def get_parser(name='dotcloud'):
             help='Tail only N logs (before following real-time logs by default)')
 
     # dotcloud var <list/set/unset> ...
-    var = subcmd.add_parser('var', help='Manipulate application variables',
+    var = subcmd.add_parser('env', help='Manipulate application environment variables',
             parents=[common_parser]).add_subparsers(dest='subcmd')
-    var.add_parser('list', help='List the application variables',
+    var.add_parser('list', help='List the application environment variables',
             parents=[common_parser])
-    var_set = var.add_parser('set', help='Set new application variables',
+    var_set = var.add_parser('set', help='Set application environment variables',
             parents=[common_parser])
-    var_set.add_argument('values', help='Application variables to set',
-            metavar='key=value', nargs='+', type=validate_var)
-    var_unset = var.add_parser('unset', help='Unset (remove) application variables',
+    var_set.add_argument('variables', help='Application environment variables to set',
+            metavar='key=value', nargs='+', type=validate_env)
+    var_unset = var.add_parser('unset', help='Unset (remove) application environment variables',
             parents=[common_parser])
-    var_unset.add_argument('variables', help='Application variables to unset',
+    var_unset.add_argument('variables', help='Application environment variables to unset',
             metavar='var', nargs='+')
 
     # dotcloud scale foo=3 bar:memory=128M
