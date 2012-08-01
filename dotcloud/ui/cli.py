@@ -539,9 +539,9 @@ class CLI(object):
         res = self.user.get(url)
         for instance in res.item['instances']:
             url = '/applications/{0}/services/{1}/instances/{2}/status'.format(
-                args.application, args.service, instance['container_id'])
+                args.application, args.service, instance['instance_id'])
             title = '{0}.{1}: '.format(
-                args.service, instance['container_id'])
+                args.service, instance['instance_id'])
             print title,
             sys.stdout.flush()
             status = self.user.get(url).item
@@ -580,9 +580,9 @@ class CLI(object):
         for domain in service.get('domains'):
             print '  - http://{0}'.format(domain.get('domain'))
 
-        for instance in sorted(service.get('instances', []), key=lambda i: i.get('container_id')):
+        for instance in sorted(service.get('instances', []), key=lambda i: i.get('instance_id')):
             print
-            print '=== {0}.{1}'.format(service.get('name'), instance.get('container_id'))
+            print '=== {0}.{1}'.format(service.get('name'), instance.get('instance_id'))
             pprint_kv([
                 ('datacenter', instance.get('datacenter')),
                 ('host', instance.get('host')),
@@ -929,7 +929,7 @@ class CLI(object):
         service = self.user.get(url).item
 
         try:
-            instances = sorted(service['instances'], key=lambda i: i['container_id'])
+            instances = sorted(service['instances'], key=lambda i: i['instance_id'])
             instance = instances[instance_id]
         except IndexError:
             self.die('Not Found: Service ({0}) instance #{1} does not exist'.format(
