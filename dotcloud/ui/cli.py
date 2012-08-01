@@ -494,20 +494,18 @@ class CLI(object):
             return ((max(step, value) & ~(step / 2 - 1)) + step - 1) & ~(step - 1)
 
         for svc in args.services:
+            url = '/applications/{0}/services/{1}' \
+                .format(args.application, svc.name)
             try:
                 if svc.action == 'instances':
-                    url = '/applications/{0}/services/{1}/instances' \
-                        .format(args.application, svc.name)
                     self.info('Changing instances of {0} to {1}'.format(
                         svc.name, svc.original_value))
-                    self.user.put(url, {'instances': svc.value})
+                    self.user.patch(url, {'instance_count': svc.value})
                 elif svc.action == 'memory':
                     memory = round_memory(svc.value)
                     self.info('Changing memory of {0} to {1}B'.format(
                         svc.name, bytes2human(memory)))
-                    url = '/applications/{0}/services/{1}/memory' \
-                        .format(args.application, svc.name)
-                    self.user.put(url, {'memory': memory})
+                    self.user.patch(url, {'reserved_memory': memory})
             except RESTAPIError as e:
                 if e.code == requests.codes.bad_request:
                     self.die('Failed to scale {0} of "{1}": {2}'.format(
