@@ -14,12 +14,10 @@ applications by repeating the command line history.
     # New CLI 
     > dotcloud2 push
     > dotcloud2 info
-    > dotcloud2 ssh www
 
     # Old CLI
     > dotcloud push myapp .
     > dotcloud info myapp
-    > dotcloud ssh myapp.www
 
 The command line executable is installed as `dotcloud2` so that you
 can keep using the existing version of the dotcloud command.
