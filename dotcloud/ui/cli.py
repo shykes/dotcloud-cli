@@ -903,35 +903,40 @@ class CLI(object):
         return s
 
     def parse_service_instance(self, service_or_instance):
-        if '.' in service_or_instance:
-            service_name, instance_id = service_or_instance.split('.', 1)
-            if not (service_name and instance_id):
-                self.die('Service instances must be formed like, "www.0"')
-            try:
-                instance_id = int(instance_id)
-                if instance_id < 0:
-                    raise ValueError('value should be >= 0')
-            except ValueError as e:
-                self.die('Unable to parse instance number: {0}'.format(e))
-
-        else:
-            service_name = service_or_instance
-            instance_id = 0
+        if '.' not in service_or_instance:
+            self.die('You must specify a service and instance, e.g. "www.0"')
+        service_name, instance_id = service_or_instance.split('.', 1)
+        if not (service_name and instance_id):
+            self.die('Service instances must be formed like, "www.0"')
+        try:
+            instance_id = int(instance_id)
+            if instance_id < 0:
+                raise ValueError('value should be >= 0')
+        except ValueError as e:
+            self.die('Unable to parse instance number: {0}'.format(e))
         return service_name, instance_id
 
     def get_ssh_endpoint(self, args):
-        service_name, instance_id = self.parse_service_instance(args.service_or_instance)
+        if '.' in args.service_or_instance:
+            service_name, instance_id = self.parse_service_instance(args.service_or_instance)
+        else:
+            service_name, instance_id = (args.service_or_instance, None)
 
         url = '/applications/{0}/services/{1}'.format(args.application,
                 service_name)
         service = self.user.get(url).item
-
-        try:
-            instances = sorted(service['instances'], key=lambda i: i['instance_id'])
-            instance = instances[instance_id]
-        except IndexError:
+        if instance_id is None:
+            if len(service['instances']) != 1:
+                self.die('There are multiple instances of service "{0}". '
+                    'Please specify the full instance name: {1}'.format(
+                        service['name'],
+                        ', '.join(['{0}.{1}'.format(service['name'], i['instance_id']) for i in service['instances']])))
+            instance_id = service['instances'][0]['instance_id']
+        instance = filter(lambda i: i['instance_id'] == instance_id, service['instances'])
+        if not instance:
             self.die('Not Found: Service ({0}) instance #{1} does not exist'.format(
                 service['name'], instance_id))
+        instance = instance[0]
 
         try:
             ssh_endpoint = filter(lambda p: p['name'] == 'ssh',
@@ -990,15 +995,13 @@ class CLI(object):
 
     @app_local
     def cmd_restart(self, args):
-        if args.instance.find('.') in (-1, 0):
-            self.die('You must specify a service and instance, e.g. "www.0"')
         # FIXME: Handle --all?
         service_name, instance_id = self.parse_service_instance(args.instance)
 
-        url = '/applications/{0}/services/{1}/restart?instance={2}' \
+        url = '/applications/{0}/services/{1}/instances/{2}/status' \
             .format(args.application, service_name, instance_id)
         try:
-            self.user.post(url)
+            self.user.put(url, {'status': 'restart'})
         except RESTAPIError as e:
             if e.code == 404:
                 self.die('Service ({0}) instance #{1} not found'.format(
