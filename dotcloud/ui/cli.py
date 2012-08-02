@@ -711,13 +711,11 @@ class CLI(object):
         if use_local_config:
             saved_protocol = self.local_config.get('push_protocol')
             arg = None
-            protocol = None
             for find_arg, find_protocol in args_proto_map.iteritems():
                 if find_protocol == saved_protocol:
                     arg = find_arg
-                    protocol = find_protocol 
                     break
-            if arg is None or protocol is None:
+            if arg is None:
                 arg = 'rsync'
         else:
             arg = 'rsync'
