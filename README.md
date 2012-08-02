@@ -14,12 +14,12 @@ applications by repeating the command line history.
     # New CLI 
     > dotcloud2 push
     > dotcloud2 info
-    > dotcloud2 ssh www
+    > dotcloud2 run www bash
 
     # Old CLI
     > dotcloud push myapp .
     > dotcloud info myapp
-    > dotcloud ssh myapp.www
+    > dotcloud run myapp.www bash
 
 The command line executable is installed as `dotcloud2` so that you
 can keep using the existing version of the dotcloud command.
@@ -103,7 +103,7 @@ creating a new application, run the connect command:
     > cd ~/dev/myapp
     > dotcloud2 connect myapp
 
-It will create your working directory with the (existing) dotcloud application `myapp`.
+It will link your current working directory with the (existing) dotcloud application `myapp`.
 
 ## Contributing
 
