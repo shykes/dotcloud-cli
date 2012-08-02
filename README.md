@@ -103,7 +103,7 @@ creating a new application, run the connect command:
     > cd ~/dev/myapp
     > dotcloud2 connect myapp
 
-It will create your working directory with the (existing) dotcloud application `myapp`.
+It will link your current working directory with the (existing) dotcloud application `myapp`.
 
 ## Contributing
 
