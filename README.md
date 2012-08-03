@@ -86,10 +86,10 @@ You can see the list of commands by running `dotcloud2 -h`.
 
 If you typed `n` when asked to connect the current directory, the CLI
 can't find the application name for the commands. You can specify the
-application name in such case, using the `--application` (or `-A` for
+application name in such case, using the `--application` (or `-a` for
 short) option:
 
-    > dotcloud2 -A myapp info
+    > dotcloud2 -a myapp info
 
 You can also use this option when you want to run commands against the
 application that you don't have the working directory for.
