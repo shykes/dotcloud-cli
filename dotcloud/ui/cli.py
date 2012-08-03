@@ -1185,8 +1185,8 @@ class CLI(object):
     def cmd_logs(self, args):
         filter_svc = None
         filter_inst = None
-        if args.service:
-            parts = args.service.split('.')
+        if args.service_or_instance:
+            parts = args.service_or_instance.split('.')
             filter_svc = parts[0]
             if len(parts) > 1:
                 filter_inst = int(parts[1])
