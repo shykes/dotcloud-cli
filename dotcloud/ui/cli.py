@@ -464,9 +464,9 @@ class CLI(object):
                 print '='.join((name, var.get(name)))
         elif args.subcmd == 'set':
             self.info('Setting {0} (application {1})'.format(
-                ', '.join(args.values), args.application))
+                ', '.join(args.variables), args.application))
             patch = {}
-            for pair in args.values:
+            for pair in args.variables:
                 key, val = pair.split('=', 1)
                 patch[key] = val
             self.user.patch(url, patch)
