@@ -149,9 +149,8 @@ class CLI(object):
 
         if not self._is_version_gte(version_local, version_min):
             # always warn when it is really too old.
-            self.warning('Your version ({0}) of the cli is really too ' \
-                    'old, you are looking for troubles.'.format(self.__version__,
-                        version_min_s))
+            self.warning('Your cli version ({0}) is outdated.'.format(self.__version__,
+                version_min_s))
         last_version_check = self.global_config.get('last_version_check', None)
 
         if last_version_check and last_version_check > time.time() \
