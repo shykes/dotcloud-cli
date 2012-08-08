@@ -300,7 +300,7 @@ class CLI(object):
         client = RESTClient(endpoint=self.client.endpoint)
         client.authenticator = NullAuth()
         urlmap = client.get('/auth/discovery').item
-        username = self.prompt('dotCloud username')
+        username = self.prompt('dotCloud username or email')
         password = self.prompt('Password', noecho=True)
         credential = {'token_url': urlmap.get('token'),
             'key': CLIENT_KEY, 'secret': CLIENT_SECRET}
