@@ -660,7 +660,13 @@ class CLI(object):
         if args.service:
             urls = self.get_url(args.application, args.service)
             if urls:
+                self.info('Opening service "{0}" in a browser: {c.bright}{1}{c.reset}'.format(
+                    args.service,
+                    urls[-1],
+                    c=self.colors))
                 webbrowser.open(urls[-1])
+            else:
+                self.die('No URLs found for service "{0}"'.format(args.service))
         else:
             urls = self.get_url(args.application)
             if not urls:
@@ -669,7 +675,11 @@ class CLI(object):
                 self.die('More than one service exposes an URL. ' \
                     'Please specify the name of the one you want to open: {0}' \
                     .format(', '.join(urls.keys())))
-            webbrowser.open(urls.values()[0][-1]['url'])
+            self.info('Opening service "{0}" in a browser: {c.bright}{1}{c.reset}'.format(
+                urls.keys()[0],
+                urls.values()[0][-1],
+                c=self.colors))
+            webbrowser.open(urls.values()[0][-1])
 
     def get_url(self, application, service=None):
         if service is None:

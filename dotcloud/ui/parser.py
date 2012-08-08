@@ -148,7 +148,7 @@ def get_parser(name='dotcloud'):
     # dotcloud open
     open_ = subcmd.add_parser('open', help='Open the application in the browser',
             parents=[common_parser])
-    open_.add_argument('service', help='Specify the service')
+    open_.add_argument('service', nargs='?', help='Specify the service')
 
     # dotcloud run service ...
     run = subcmd.add_parser('run',
