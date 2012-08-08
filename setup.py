@@ -24,7 +24,7 @@ from setuptools import setup
 VERSION = '0.9.0'
 
 setup(
-    name = 'dotcloud2',
+    name = 'dotcloud-beta',
     author = 'dotCloud Inc.',
     version = VERSION,
     packages = [
@@ -34,7 +34,7 @@ setup(
         'dotcloud.packages'
     ],
     scripts  = [
-        'bin/dotcloud2'
+        'bin/dotcloud-beta'
     ],
     install_requires = ['argparse', 'requests', 'colorama'],
     zip_safe = False
