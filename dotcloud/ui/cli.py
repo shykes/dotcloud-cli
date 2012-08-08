@@ -339,11 +339,18 @@ class CLI(object):
 
     def cmd_list(self, args):
         res = self.user.get('/applications')
+        padding = max([len(app['name']) for app in res.items]) + 2
         for app in sorted(res.items, key=lambda x: x['name']):
             if app['name'] == args.application:
-                print '* ' + '{0} ({1})'.format(self.colors.green(app['name']), app['flavor'])
+                print '* {0}{1}{2}'.format(
+                    self.colors.green(app['name']),
+                    ' ' * (padding - len(app['name'])),
+                    app['flavor'])
             else:
-                print '  ' + '{0} ({1})'.format(app['name'], app.get('flavor'))
+                print '  {0}{1}{2}'.format(
+                    app['name'],
+                    ' ' * (padding - len(app['name'])),
+                    app.get('flavor'))
 
     def cmd_create(self, args):
         self.info('Creating a {c.bright}{flavor}{c.reset} application named "{name}"'.format(
