@@ -471,9 +471,9 @@ class CLI(object):
                 print '='.join((name, var.get(name)))
         elif args.subcmd == 'set':
             self.info('Setting {0} (application {1})'.format(
-                ', '.join(args.values), args.application))
+                ', '.join(args.variables), args.application))
             patch = {}
-            for pair in args.values:
+            for pair in args.variables:
                 key, val = pair.split('=', 1)
                 patch[key] = val
             self.user.patch(url, patch)
@@ -1195,8 +1195,8 @@ class CLI(object):
     def cmd_logs(self, args):
         filter_svc = None
         filter_inst = None
-        if args.service:
-            parts = args.service.split('.')
+        if args.service_or_instance:
+            parts = args.service_or_instance.split('.')
             filter_svc = parts[0]
             if len(parts) > 1:
                 filter_inst = int(parts[1])
