@@ -64,7 +64,7 @@ def get_parser(name='dotcloud'):
     # The common parser is used as a parent for all sub-commands so that
     # they all share --application
     common_parser = Parser(prog=name, add_help=False)
-    common_parser.add_argument('--application', '-a', help='Specify the application')
+    common_parser.add_argument('--application', '-A', help='Specify the application')
 
     # The "connect" and "create" share some options, as "create" will
     # offer to connect the current directory to the new application.
@@ -125,7 +125,7 @@ def get_parser(name='dotcloud'):
     # dotcloud activity
     activity = subcmd.add_parser('activity', help='Display your recent activity',
             parents=[common_parser])
-    activity.add_argument('--all' ,'-A', action='store_true',
+    activity.add_argument('--all' ,'-a', action='store_true',
             help='Print out your activities among all your applications rather than the '
                  'currently connected or selected one. (This is the default behavior when '
                  'not connected to any application.)')
