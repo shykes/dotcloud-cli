@@ -161,7 +161,7 @@ class CLI(object):
 
         if not self._is_version_gte(version_local, version_cur):
             self.info('A newer version ({0}) of the CLI is available ' \
-                    '(upgrade with: pip install -U {1})'.format(version_cur_s, self.cmd))
+                    '(upgrade with: pip install -U https://github.com/dotcloud/dotcloud-cli/tarball/master)'.format(version_cur_s))
 
     def ensure_app_local(self, args):
         if args.application is None:
