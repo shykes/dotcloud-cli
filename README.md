@@ -26,8 +26,7 @@ can keep using the existing version of the dotCloud command.
 
 ## Setup
 
-First, you have to configure your CLI to work as a dotCloud REST API
-consumer.
+First, you have to configure your CLI.
 
     > dotcloud-beta setup
     Dotcloud Username: your-user-name
