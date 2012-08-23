@@ -64,8 +64,8 @@ class RESTClient(object):
             return path
 
     def get(self, path='', streaming=False):
-        return self.make_response(self.session.get(self.build_url(path)),
-                streaming)
+        return self.make_response(self.session.get(self.build_url(path),
+            prefetch=not streaming), streaming)
 
     def post(self, path='', payload={}):
         return self.make_response(

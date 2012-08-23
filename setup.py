@@ -36,6 +36,6 @@ setup(
     scripts  = [
         'bin/dotcloud-beta'
     ],
-    install_requires = ['argparse', 'requests', 'colorama'],
+    install_requires = ['argparse', 'requests==0.13.8', 'colorama'],
     zip_safe = False
 )
