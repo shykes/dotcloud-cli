@@ -227,7 +227,8 @@ def get_parser(name='dotcloud'):
     logs = subcmd.add_parser('logs', help='View your application logs or watch logs live',
             parents=[common_parser])
     logs.add_argument('service_or_instance',
-            help='Fetch logs from the given service (ex: www) or a specific instance (ex: www.1)')
+            nargs='?',
+            help='Display only logs of a given service (ex: www) or a specific instance (ex: www.1)')
     logs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
     logs.add_argument('--lines', '-n', type=int, metavar='N',

@@ -10,7 +10,7 @@ except ImportError, e:
 
 if __name__ == '__main__':
    import os
-   url = os.environ.get('DOTCLOUD_API_ENDPOINT', 'https://api-experimental.dotcloud.com/v1')
+   url = os.environ.get('DOTCLOUD_API_ENDPOINT', 'https://rest.dotcloud.com/v1')
    debug = os.environ.get('DOTCLOUD_DEBUG', False)
    username = os.environ.get('DOTCLOUD_USERNAME', None)
    cli = CLI(endpoint=url, debug=debug, username=username)

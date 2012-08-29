@@ -21,7 +21,7 @@
 ## THE SOFTWARE.
 
 from setuptools import setup
-VERSION = '0.9.0'
+VERSION = '0.9.1'
 
 setup(
     name = 'dotcloud-beta',
@@ -36,6 +36,6 @@ setup(
     scripts  = [
         'bin/dotcloud-beta'
     ],
-    install_requires = ['argparse', 'requests', 'colorama'],
+    install_requires = ['argparse', 'requests==0.13.8', 'colorama'],
     zip_safe = False
 )

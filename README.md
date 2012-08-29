@@ -1,11 +1,11 @@
-# DotCloud CLI
+# dotCloud CLI
 
-This is a beta version of the new DotCloud command line interface.
+This is a beta version of the new dotCloud command line interface.
 
 ## What's New
 
 This version of CLI is designed to work with the application directory
-linked to the remote dotcloud application.
+linked to the remote dotCloud application.
 
 This allows you to avoid typing the same application names multiple
 times, and reduce the possiblity of making typos and overwrite wrong
@@ -22,19 +22,18 @@ applications by repeating the command line history.
     > dotcloud run myapp.www bash
 
 The command line executable is installed as `dotcloud-beta` so that you
-can keep using the existing version of the dotcloud command.
+can keep using the existing version of the dotCloud command.
 
 ## Setup
 
-First, you have to configure your CLI to work as a DotCloud REST API
-consumer.
+First, you have to configure your CLI.
 
     > dotcloud-beta setup
     Dotcloud Username: your-user-name
     Password: **********
 
-You're asked to provide your username and password for DotCloud, to
-register the new CLI client as a DotCloud REST API consumer. You can
+You're asked to provide your username and password for dotCloud, to
+register the new CLI client as a dotCloud REST API consumer. You can
 also use email, instead of your username.
 
 The CLI won't save this credentials locally - instead, it will save
@@ -72,7 +71,7 @@ typing the application name from now on.
 
 ### Running commands
 
-To push the code to the DotCloud platform, simply type:
+To push the code to the dotCloud platform, simply type:
 
     > dotcloud-beta push
 
@@ -96,14 +95,14 @@ application that you don't have the working directory for.
 
 ### Connect
 
-Similarly, if you already have a working directory *and* a dotcloud
+Similarly, if you already have a working directory *and* a dotCloud
 remote application and want to connect them together, instead of
 creating a new application, run the connect command:
 
     > cd ~/dev/myapp
     > dotcloud-beta connect myapp
 
-It will link your current working directory with the (existing) dotcloud application `myapp`.
+It will link your current working directory with the (existing) dotCloud application `myapp`.
 
 ## Contributing
 
@@ -113,5 +112,5 @@ best way to send feedbacks is to open it in the github issues list.
 If you really want to contribute your code by submitting patches (that
 is awesome!), fork a project on github, and send us a pull
 request. Note that by forking and sending pull requests, you agree to
-assign the copyright to DotCloud Inc.
+assign the copyright to dotCloud Inc.
 

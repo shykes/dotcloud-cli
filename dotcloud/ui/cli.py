@@ -149,9 +149,8 @@ class CLI(object):
 
         if not self._is_version_gte(version_local, version_min):
             # always warn when it is really too old.
-            self.warning('Your version ({0}) of the cli is really too ' \
-                    'old, you are looking for troubles.'.format(self.__version__,
-                        version_min_s))
+            self.warning('Your cli version ({0}) is outdated.'.format(self.__version__,
+                version_min_s))
         last_version_check = self.global_config.get('last_version_check', None)
 
         if last_version_check and last_version_check > time.time() \
@@ -162,7 +161,7 @@ class CLI(object):
 
         if not self._is_version_gte(version_local, version_cur):
             self.info('A newer version ({0}) of the CLI is available ' \
-                    '(upgrade with: pip install -U {1})'.format(version_cur_s, self.cmd))
+                    '(upgrade with: pip install -U https://github.com/dotcloud/dotcloud-cli/tarball/master)'.format(version_cur_s))
 
     def ensure_app_local(self, args):
         if args.application is None:
@@ -300,7 +299,7 @@ class CLI(object):
         client = RESTClient(endpoint=self.client.endpoint)
         client.authenticator = NullAuth()
         urlmap = client.get('/auth/discovery').item
-        username = self.prompt('dotCloud username')
+        username = self.prompt('dotCloud username or email')
         password = self.prompt('Password', noecho=True)
         credential = {'token_url': urlmap.get('token'),
             'key': CLIENT_KEY, 'secret': CLIENT_SECRET}
