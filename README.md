@@ -46,7 +46,7 @@ correctly.
     --> Checking the authentication status
     OK: Client is authenticated as <your-username>
 
-If this fails, try removing the directory `~/.dotcloud` and start
+If this fails, try removing the directory `~/.dotcloud_cli` and start
 over from the setup.
 
 ## Working with your application
