@@ -91,14 +91,14 @@ def get_parser(name='dotcloud'):
     subcmd.add_parser('setup', help='Setup the client authentication')
 
     # dotcloud check
-    subcmd.add_parser('check', help='Check the installation and authentication')
+    subcmd.add_parser('check', help='Check that the client is properly setup')
 
     # dotcloud list
     subcmd.add_parser('list', help='List all applications')
 
     # dotcloud connect
     connect = subcmd.add_parser('connect',
-            help='Connect a local directory to an existing application',
+            help='Connect the current directory to an existing application',
             parents=[connect_options_parser])
     connect.add_argument('application', help='Specify the application')
 
@@ -114,16 +114,16 @@ def get_parser(name='dotcloud'):
     create.add_argument('application', help='Specify the application')
 
     # dotcloud destroy
-    destroy = subcmd.add_parser('destroy', help='Destroy an existing app',
+    destroy = subcmd.add_parser('destroy', help='Destroy an application',
             parents=[common_parser])
-    destroy.add_argument('service', nargs='?', help='Specify the service')
+    destroy.add_argument('service', nargs='?', help='Optionally, only destroy the specified service')
 
     # dotcloud app
     subcmd.add_parser('app',
-            help='Display the application name connected to the current directory')
+            help='Display the application connected to the current directory')
 
     # dotcloud activity
-    activity = subcmd.add_parser('activity', help='Display your recent activity',
+    activity = subcmd.add_parser('activity', help='Display recent activity',
             parents=[common_parser])
     activity.add_argument('--all' ,'-a', action='store_true',
             help='Print out your activities among all your applications rather than the '
@@ -133,7 +133,7 @@ def get_parser(name='dotcloud'):
     # dotcloud info
     info = subcmd.add_parser('info', help='Get information about the application or service',
             parents=[common_parser])
-    info.add_argument('service', nargs='?', help='Specify the service')
+    info.add_argument('service', nargs='?', help='Optionally select a single service in the application')
 
     # dotcloud url
     url = subcmd.add_parser('url', help='Display the URL(s) for the application',
@@ -146,33 +146,40 @@ def get_parser(name='dotcloud'):
     status.add_argument('service', help='Specify the service')
 
     # dotcloud open
-    open_ = subcmd.add_parser('open', help='Open the application in the browser',
+    open_ = subcmd.add_parser('open', help='Open the application in a browser',
             parents=[common_parser])
     open_.add_argument('service', nargs='?', help='Specify the service')
 
     # dotcloud run service ...
     run = subcmd.add_parser('run',
-            help='Open a shell or run a command inside a service instance',
+            help='Open a shell or run a command inside a container',
             parents=[common_parser])
     run.add_argument('service_or_instance',
-            help='Open a shell or run the command on the first instance of a given service '
-                 '(ex: www) or a specific one (ex: www.1)')
+            metavar='SERVICE[.CONTAINER]'
+            help='Select the container in which to run the command, by service name and container id (eg: www.1). ' \
+                    'If CONTAINER is omitted, the first container in the service will be selected (eg: www)'
+                )
     run.add_argument('command', nargs='?',
-            help='The command to execute on the service\'s instance. '
-                 'If not specified, open a shell.')
+            help='The command to run. If not specified, open a shell.')
     run.add_argument('args', nargs=argparse.REMAINDER, metavar='...',
             help='Any arguments to the command')
 
     # dotcloud push
-    push = subcmd.add_parser('push', help='Push the code', parents=[common_parser])
+    push = subcmd.add_parser('push', help='Upload code from the current directory and deploy it to the application',
+            parents=[common_parser])
     push.add_argument('path', nargs='?', default=None,
-            help='Path to the directory to push (by default "./")')
+            help='Path to the local directory to upload (default "./")')
     push.add_argument('--clean', action='store_true',
-            help='Do a full build (rather than incremental)')
+            help='Perform a clean build rather than incremental')
+
     rsync_or_dvcs = push.add_mutually_exclusive_group()
-    rsync_or_dvcs.add_argument('--rsync', action='store_true', help='Use rsync to push (default)')
-    rsync_or_dvcs.add_argument('--git', action='store_true', help='Use git to push')
-    rsync_or_dvcs.add_argument('--hg', action='store_true', help='Use mercurial to push')
+    rsync_or_dvcs.add_argument('--rsync', '-a', action='store_true',
+            help='Upload with rsync (default)')
+    rsync_or_dvcs.add_argument('--git', '-g', action='store_true',
+            help='Upload with "git push"')
+    rsync_or_dvcs.add_argument('--hg', '-m', action='store_true',
+            help='Upload with "hg push"')
+
     branch_or_commit = push.add_mutually_exclusive_group()
     branch_or_commit.add_argument('--branch', '-b', metavar='NAME',
             help='Specify the branch to push when pushing via DVCS '
@@ -182,24 +189,27 @@ def get_parser(name='dotcloud'):
                  '(by default, use the latest one)')
 
     # dotcloud deploy revision
-    deploy = subcmd.add_parser('deploy', help='Deploy a specific version',
+    deploy = subcmd.add_parser('deploy', help='Deploy a new version of the application',
             parents=[common_parser])
     deploy.add_argument('revision',
-            help='Revision to deploy (Symbolic revisions "latest" and "previous" are supported)')
+            metavar='REVISION|"latest"|"previous"',
+            help='Revision to deploy')
     deploy.add_argument('--clean', action='store_true',
-            help='If a build is needed, do a full build (rather than incremental)')
+            help='Perform a clean build if a build is needed')
 
     # dotcloud dlist
     subcmd.add_parser('dlist', help='List recent deployments', parents=[common_parser])
 
     # dotcloud dlogs deployment
-    dlogs = subcmd.add_parser('dlogs', help='Review past deployments or watch one in-flight',
+    dlogs = subcmd.add_parser('dlogs', help='Display deployment logs',
             parents=[common_parser])
     dlogs.add_argument('deployment_id',
-            help='Which recorded deployment to view (discoverable with the command, '
-                 '"dotcloud dlist") or "latest".')
+            metavar='DEPLOYMENT | "latest"',
+            help="Select a deployment to display (SEE ALSO: dlist)"
+        )
     dlogs.add_argument('service_or_instance', nargs='?',
-            help='Filter logs by a given service (ex: www) or a specific instance (ex: www.0). ')
+            metavar="SERVICE[.CONTAINER]",
+            help='Filter logs by source. Source can be a single container (eg. "www.0") or a service (eg. "www")')
     dlogs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
     dlogs.add_argument('--lines', '-n', type=int, metavar='N',
@@ -224,11 +234,12 @@ def get_parser(name='dotcloud'):
 #            )
 
     # dotcloud logs
-    logs = subcmd.add_parser('logs', help='View your application logs or watch logs live',
+    logs = subcmd.add_parser('logs', help='Display application logs',
             parents=[common_parser])
     logs.add_argument('service_or_instance',
+            metavar='SERVICE[.CONTAINER]',
             nargs='?',
-            help='Display only logs of a given service (ex: www) or a specific instance (ex: www.1)')
+            help='Filter logs by source. Source can be a single container (eg. "www.0") or a service (eg. "www").')
     logs.add_argument('--no-follow', '-N', action='store_true',
             help='Do not follow real-time logs')
     logs.add_argument('--lines', '-n', type=int, metavar='N',
@@ -257,11 +268,11 @@ def get_parser(name='dotcloud'):
                        type=ScaleOperation)
 
     # dotcloud restart foo.0
-    restart = subcmd.add_parser('restart', help='Restart a service instance',
+    restart = subcmd.add_parser('restart', help='Restart a container',
             parents=[common_parser])
     restart.add_argument('instance',
-            help='Restart the first instance of a given service (ex: www) or '
-                 'a specific one (ex: www.1)')
+            metavar='SERVICE[.CONTAINER]',
+            help='Select the container to restart (eg. "www.0"). If CONTAINER is omitted, the first container in the service will be selected (eg. "www")')
 
     # dotcloud domain <list/add/rm> service domain
     domain = subcmd.add_parser('domain', help='Manage domains for the service',
